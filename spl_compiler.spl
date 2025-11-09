@@ -1,0 +1,233 @@
+#define AND(a, b) ((a) * (b))
+#define OR(a, b)  ((a) + (b) - (a) * (b))
+#define COND(c, r) if (c) r := 1; else r := 0;
+
+#define LINE_FFED 10
+
+#define TOK_IDENT    0
+#define TOK_INT      1
+#define TOK_CHAR     2
+#define TOK_IF       3
+#define TOK_ELSE     4
+#define TOK_WHILE    5
+#define TOK_ARRAY    6
+#define TOK_OF       7
+#define TOK_PROC     8
+#define TOK_REF      9
+#define TOK_TYPE     10
+#define TOK_VAR      11
+#define TOK_LPAREN   12
+#define TOK_RPAREN   13
+#define TOK_LBRACK   14
+#define TOK_RBRACK   15
+#define TOK_LCURL    16
+#define TOK_RCURL    17
+#define TOK_EQUAL    18
+#define TOK_HASH     19
+#define TOK_LT       20
+#define TOK_LTE      21
+#define TOK_GT       22
+#define TOK_GTE      23
+#define TOK_PLUS     24
+#define TOK_MINUS    25
+#define TOK_ASTERISK 26
+#define TOK_SLASH    27
+#define TOK_COLON    28
+#define TOK_SEMIC    29
+#define TOK_COMMA    30
+#define TOK_ASSGN    31
+#define TOK_EOF      32
+#define TOK_ILLEGAL  33
+
+#define TOKEN(type) tokens[tokenPointer] := type; tokenPointer := tokenPointer + 1;
+
+type DataArray = array[99999] of int;
+
+proc array_cpy(ref source: DataArray, ref target: DataArray, start: int, end: int) {
+    while (start < end) {
+        target[start] := source[start];
+
+        start := start + 1; 
+    }
+}
+
+proc read_input(ref input: DataArray, ref length: int) {
+    var char: int;
+    var index: int;
+
+    readc(char);
+    input[0] := char;
+
+    index := 1;
+    while (char # '.') { // Input file must end with '.' to indicate EOF
+        readc(char);
+        input[index] := char;
+        index := index + 1;
+    }
+
+    // Replace '.' with 0 to indicate EOF
+    input[index - 1] := 0;
+    length := index - 1;
+}
+
+proc lex_is_whitespace(c: int, ref r: int) {
+    var space: int;
+    var lineFeed: int;
+    var carriageReturn: int;
+    var horizontalTab: int;
+    
+    COND(c = 32, space)
+    COND(c = LINE_FFED, lineFeed)
+    COND(c = 13, carriageReturn)
+    COND(c = 9, horizontalTab)
+
+    r := OR(OR(OR(space, lineFeed), carriageReturn), horizontalTab);
+}
+
+proc lex_eat_whitespace(ref input: DataArray, ref charPointer: int) {
+    var isWhitespace: int;
+
+    lex_is_whitespace(input[charPointer], isWhitespace);
+
+    while (isWhitespace # 0) {
+        charPointer := charPointer + 1;
+        lex_is_whitespace(input[charPointer], isWhitespace);
+    }
+}
+
+proc lex_eat_comment(ref input: DataArray, ref charPointer: int) {
+    var isCurrentCharSlash: int;
+    var isPeekCharSlash: int;
+    var isNotLineFeed: int;
+    var isEof: int;
+
+    COND(input[charPointer] = '/', isCurrentCharSlash)
+    COND(input[charPointer + 1] = '/', isPeekCharSlash)
+
+    if (AND(isCurrentCharSlash, isPeekCharSlash) # 0) {
+        COND(input[charPointer] # LINE_FFED, isNotLineFeed)
+        COND(input[charPointer] # 0, isEof)
+
+        while (AND(isNotLineFeed, isEof) # 0) {
+            charPointer := charPointer + 1;
+
+            COND(input[charPointer] # LINE_FFED, isNotLineFeed)
+            COND(input[charPointer] # 0, isEof)
+        }
+
+        lex_eat_whitespace(input, charPointer);
+        lex_eat_comment(input, charPointer);
+    }
+}
+
+proc lex_is_alphanumeric_or_underscore(c: int, ref r: int) {
+    var isUpperCaseLetter: int;
+    var isLowerCaseLetter: int;
+    var isDigit: int;
+    var isUnderscore: int;
+
+    isUpperCaseLetter := 0;
+    isLowerCaseLetter := 0;
+    isDigit := 0;
+    isUnderscore := 0;
+
+    if (c >= 0x41) {
+        if (c <= 0x5A) {
+            isUpperCaseLetter := 1;
+        }
+    }
+    
+    if (c >= 0x61) {
+        if (c <= 0x7A) {
+            isLowerCaseLetter := 1;
+        }
+    }
+
+    if (c >= 0x30) {
+        if (c <= 0x39) {
+            isDigit := 1;
+        } 
+    }
+    
+    if (c = '_') {
+        isUnderscore := 1;
+    }
+
+    r := OR(OR(OR(isUpperCaseLetter, isLowerCaseLetter), isDigit), isUnderscore);
+}
+
+proc lex_read_ident(ref input: DataArray, ref charPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var startIndex: int;
+    var isCurrentCharAlphaOrUnderscore: int;
+
+    startIndex := charPointer - 1;
+
+    lex_is_alphanumeric_or_underscore(input[charPointer], isCurrentCharAlphaOrUnderscore);
+
+    while (isCurrentCharAlphaOrUnderscore # 0) {
+        charPointer := charPointer + 1;
+        lex_is_alphanumeric_or_underscore(input[charPointer], isCurrentCharAlphaOrUnderscore); 
+    }
+
+    array_cpy(input, tokens, startIndex, charPointer);
+    tokenPointer := tokenPointer + (charPointer - startIndex);
+}
+
+proc lex(ref tokens: DataArray, ref input: DataArray, inputLength: int) {
+    var charPointer: int;
+    var currentChar: int;
+    var tokenPointer: int;
+
+    charPointer := 0;
+    tokenPointer := 0;
+
+    lex_eat_whitespace(input, charPointer);
+    lex_eat_comment(input, charPointer);
+
+    while (charPointer < inputLength) {
+        currentChar := input[charPointer];
+        
+        if (currentChar = ';') {
+            TOKEN(TOK_SEMIC)
+        } else if (currentChar = ',') {
+            TOKEN(TOK_COMMA)
+        } else if (currentChar = '(') {
+            TOKEN(TOK_LPAREN)
+        } else if (currentChar = ')') {
+            TOKEN(TOK_RPAREN)
+        } else if (currentChar = '{') {
+            TOKEN(TOK_LCURL)
+        } else if (currentChar = '}') {
+            TOKEN(TOK_RCURL)
+        } else if (currentChar = '[') {
+            TOKEN(TOK_LBRACK)
+        } else if (currentChar = ']') {
+            TOKEN(TOK_RBRACK)
+        } else if (currentChar = '+') {
+            TOKEN(TOK_PLUS)
+        } else if (currentChar = '-') {
+            TOKEN(TOK_MINUS)
+        } else if (currentChar = '*') {
+            TOKEN(TOK_ASTERISK)
+        } else if (currentChar = '/') {
+            TOKEN(TOK_SLASH)
+        } else if (currentChar = '=') {
+            TOKEN(TOK_EQUAL)
+        } else {
+            printc(currentChar);
+        }
+
+        charPointer := charPointer + 1;
+    }
+}
+
+proc main() {
+    var input: DataArray;
+    var inputLength: int;
+
+    var tokens: DataArray;
+
+    read_input(input, inputLength);
+
+    lex(tokens, input, inputLength);
+}
