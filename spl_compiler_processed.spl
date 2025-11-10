@@ -158,6 +158,7 @@ proc lex_read_decimal_int(ref input: DataArray, ref charPointer: int, ref tokens
         charPointer := charPointer + 1;
         lex_is_digit(input[charPointer], isDigit);
     }
+    charPointer := charPointer - 1;
     tokens[tokenPointer] := parsed;
     tokenPointer := tokenPointer + 1;
 }
@@ -176,6 +177,7 @@ proc lex_read_hex_int(ref input: DataArray, ref charPointer: int, ref tokens: Da
         charPointer := charPointer + 1;
         lex_hex_to_int(input[charPointer], decimal);
     }
+    charPointer := charPointer - 1;
     tokens[tokenPointer] := parsed;
     tokenPointer := tokenPointer + 1;
 }
@@ -183,38 +185,38 @@ proc lex_match_keyword(ref input: DataArray, ref charPointer: int, ref keyword: 
     keyword := -1;
     if (input[charPointer + (0)] = 'i') if (input[charPointer + (1)] = 'f') {
         keyword := 3;
-        charPointer := charPointer + 2;
+        charPointer := charPointer + 1;
     }
     if (input[charPointer + (0)] = 'e') if (input[charPointer + (1)] = 'l') if (input[charPointer + (2)] = 's') if (input[charPointer + (3)] = 'e') {
-        charPointer := charPointer + 4;
+        charPointer := charPointer + 3;
         keyword := 4;
     }
     if (input[charPointer + (0)] = 'w') if (input[charPointer + (1)] = 'h') if (input[charPointer + (2)] = 'i') if (input[charPointer + (3)] = 'l') if (input[charPointer + (4)] = 'e') {
-        charPointer := charPointer + 5;
+        charPointer := charPointer + 4;
         keyword := 5;
     }
     if (input[charPointer + (0)] = 'a') if (input[charPointer + (1)] = 'r') if (input[charPointer + (2)] = 'r') if (input[charPointer + (3)] = 'a') if (input[charPointer + (4)] = 'y') {
-        charPointer := charPointer + 5;
+        charPointer := charPointer + 4;
         keyword := 6;
     }
     if (input[charPointer + (0)] = 'o') if (input[charPointer + (1)] = 'f') {
-        charPointer := charPointer + 2;
+        charPointer := charPointer + 1;
         keyword := 7;
     }
     if (input[charPointer + (0)] = 'p') if (input[charPointer + (1)] = 'r') if (input[charPointer + (2)] = 'o') if (input[charPointer + (3)] = 'c') {
-        charPointer := charPointer + 4;
+        charPointer := charPointer + 3;
         keyword := 8;
     }
     if (input[charPointer + (0)] = 'r') if (input[charPointer + (1)] = 'e') if (input[charPointer + (2)] = 'f') {
-        charPointer := charPointer + 3;
+        charPointer := charPointer + 2;
         keyword := 9;
     }
     if (input[charPointer + (0)] = 't') if (input[charPointer + (1)] = 'y') if (input[charPointer + (2)] = 'p') if (input[charPointer + (3)] = 'e') {
-        charPointer := charPointer + 4;
+        charPointer := charPointer + 3;
         keyword := 10;
     }
     if (input[charPointer + (0)] = 'v') if (input[charPointer + (1)] = 'a') if (input[charPointer + (2)] = 'r') {
-        charPointer := charPointer + 3;
+        charPointer := charPointer + 2;
         keyword := 11;
     }
 }
@@ -404,12 +406,95 @@ proc Lex_print_tokens(ref tokens: DataArray, tokenPointer: int) {
         i := i + 1;
     }
 }
+proc parse_eat(type_: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var length: int;
+    if (tokens[tokenPointer] = type_) {
+        if (type_ = 0) {
+            tokenPointer := tokenPointer + 1;
+            length := tokens[tokenPointer];
+            tokenPointer := tokenPointer + 1;
+            tokenPointer := tokenPointer + length;
+        } else if (type_ = 1) {
+            tokenPointer := tokenPointer + 2;
+        } else if (type_ = 2) {
+            tokenPointer := tokenPointer + 2;
+        } else {
+            tokenPointer := tokenPointer + 1;
+        }
+    } else {
+        exit();
+    }
+}
+proc parse_cpy_ident(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var length: int;
+    var valueStart: int;
+    length := tokens[tokenPointer + 1];
+    valueStart := tokenPointer + 2;
+    ast[astPointer] := length;
+    astPointer := astPointer + 1;
+    array_cpy(tokens, ast, valueStart, length, astPointer);
+    astPointer := astPointer + length;
+}
+proc parse_type_expr(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    if (tokens[tokenPointer] = 6) {
+        ast[astPointer] := (1); astPointer := astPointer + 1;
+        parse_eat((6), tokens, tokenPointer);
+        parse_eat((14), tokens, tokenPointer);
+        ast[astPointer] := (tokens[tokenPointer + 1]); astPointer := astPointer + 1;
+        parse_eat((1), tokens, tokenPointer);
+        parse_eat((15), tokens, tokenPointer);
+        parse_eat((7), tokens, tokenPointer);;
+        ast[astPointer] := (astPointer + 1); astPointer := astPointer + 1;;
+        parse_type_expr(ast, astPointer, tokens, tokenPointer);
+    } else if (tokens[tokenPointer] = 0) {
+        ast[astPointer] := (9); astPointer := astPointer + 1;
+        parse_cpy_ident(ast, astPointer, tokens, tokenPointer);
+        parse_eat((0), tokens, tokenPointer);
+    } else {
+        exit();
+    }
+}
+proc parse_type_decl(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    ast[astPointer] := (13); astPointer := astPointer + 1;
+    parse_eat((10), tokens, tokenPointer);
+    parse_cpy_ident(ast, astPointer, tokens, tokenPointer);
+    parse_eat((0), tokens, tokenPointer);
+    parse_eat((18), tokens, tokenPointer);
+    ast[astPointer] := (astPointer + 1); astPointer := astPointer + 1;
+    parse_type_expr(ast, astPointer, tokens, tokenPointer);
+    parse_eat(29, tokens, tokenPointer);
+}
+proc parse_global(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    if (tokens[tokenPointer] = 10) {
+        parse_type_decl(ast, astPointer, tokens, tokenPointer);
+    } else if (tokens[tokenPointer] = 8) {
+    } else {
+        exit();
+    }
+}
+proc parse(ref ast: DataArray, ref tokens: DataArray) {
+    var astPointer: int;
+    var tokenPointer: int;
+    astPointer := 0;
+    tokenPointer := 0;
+    while (tokens[tokenPointer] # 32) {
+        parse_global(ast, astPointer, tokens, tokenPointer);
+    }
+}
 proc main() {
+    var i: int;
     var input: DataArray;
     var inputLength: int;
     var tokenPointer: int;
     var tokens: DataArray;
+    var ast: DataArray;
     read_input(input, inputLength);
     lex(tokens, tokenPointer, input, inputLength);
-    Lex_print_tokens(tokens, tokenPointer);
+    parse(ast, tokens);
+    i := 0;
+    while (i < 20) {
+        printi(ast[i]);
+        printc('\n');
+        i := i + 1;
+    }
 }
