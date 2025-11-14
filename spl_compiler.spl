@@ -42,31 +42,31 @@
 #define K_MATCH(i, c) if (input[charPointer + (i)] = c)
 
 #define CURR_TOK tokens[tokenPointer]
-#define PEEK_TOK tokens[tokenPointer + 1]
 
 #define CHAR_TO_INT(c) ((c) - 0x30)
 
-#define NODE_ARR_ACC         0
-#define NODE_ARR_TYPE_EXPR   1
-#define NODE_ASSGN_STMT      2
-#define NODE_BIN_EXPR        3
-#define NODE_CALL_STMT       4
-#define NODE_COMP_STMT       5
-#define NODE_EMPTY_STMT      6
-#define NODE_IF_STMT         7
-#define NODE_INT_LIT         8
-#define NODE_NAMED_TYPE_EXPR 9 
-#define NODE_NAMED_VAR       10
-#define NODE_PARAM_DECL      11
-#define NODE_PARAM_DECL_LIST 12
-#define NODE_PROC_DECL       13
-#define NODE_STMT_LIST       14
-#define NODE_TYPE_DECL       15
-#define NODE_UNA_EXPR        16
-#define NODE_VAR_DECL        17
-#define NODE_VAR_DECL_LIST   18
-#define NODE_VAR_EXPR        19
-#define NODE_WHILE_STMT      20
+#define NODE_ARG_LIST        0
+#define NODE_ARR_ACC         1
+#define NODE_ARR_TYPE_EXPR   2
+#define NODE_ASSGN_STMT      3
+#define NODE_BIN_EXPR        4
+#define NODE_CALL_STMT       5
+#define NODE_COMP_STMT       6
+#define NODE_EMPTY_STMT      7
+#define NODE_IF_STMT         8
+#define NODE_INT_LIT         9
+#define NODE_NAMED_TYPE_EXPR 10 
+#define NODE_NAMED_VAR       11
+#define NODE_PARAM_DECL      12
+#define NODE_PARAM_DECL_LIST 13
+#define NODE_PROC_DECL       14
+#define NODE_STMT_LIST       15
+#define NODE_TYPE_DECL       16
+#define NODE_UNA_EXPR        17
+#define NODE_VAR_DECL        18
+#define NODE_VAR_DECL_LIST   19
+#define NODE_VAR_EXPR        20
+#define NODE_WHILE_STMT      21
 
 #define CURR_TOK_V tokens[tokenPointer + 1]
 #define AST_W(n) ast[astPointer] := (n); astPointer := astPointer + 1;
@@ -342,51 +342,80 @@ proc lex_read_hex_int(ref input: DataArray, ref charPointer: int, ref tokens: Da
 
 
 proc lex_match_keyword(ref input: DataArray, ref charPointer: int, ref keyword: int) {
+    var isEnd: int;
+
     keyword := -1;
     
-    K_MATCH(0, 'i') K_MATCH(1, 'f') {   
-        keyword := TOK_IF;
-        charPointer := charPointer + 1;
+    K_MATCH(0, 'i') K_MATCH(1, 'f')  {   
+        lex_is_alphanumeric_or_underscore(input[charPointer + 2], isEnd);
+        if (isEnd = 0) {
+            charPointer := charPointer + 1;
+            keyword := TOK_IF;
+        }
     }
 
     K_MATCH(0, 'e') K_MATCH(1, 'l') K_MATCH(2, 's') K_MATCH(3, 'e') {
-        charPointer := charPointer + 3;
-        keyword := TOK_ELSE;
+        lex_is_alphanumeric_or_underscore(input[charPointer + 4], isEnd);
+        if (isEnd = 0) {
+            charPointer := charPointer + 3;
+            keyword := TOK_ELSE;
+        }
     }
 
     K_MATCH(0, 'w') K_MATCH(1, 'h') K_MATCH(2, 'i') K_MATCH(3, 'l') K_MATCH(4, 'e') {
-        charPointer := charPointer + 4;
-        keyword := TOK_WHILE;
+        lex_is_alphanumeric_or_underscore(input[charPointer + 5], isEnd);
+        if (isEnd = 0) {
+            charPointer := charPointer + 4;
+            keyword := TOK_WHILE;
+        }
     }
 
-    K_MATCH(0, 'a') K_MATCH(1, 'r') K_MATCH(2, 'r') K_MATCH(3, 'a') K_MATCH(4, 'y') {
-        charPointer := charPointer + 4;
-        keyword := TOK_ARRAY;
+    K_MATCH(0, 'a') K_MATCH(1, 'r') K_MATCH(2, 'r') K_MATCH(3, 'a') K_MATCH(4, 'y')  {
+        lex_is_alphanumeric_or_underscore(input[charPointer + 5], isEnd);
+        if (isEnd = 0) {
+            charPointer := charPointer + 4;
+            keyword := TOK_ARRAY;
+        }
     }
 
     K_MATCH(0, 'o') K_MATCH(1, 'f') {
-        charPointer := charPointer + 1;
-        keyword := TOK_OF;
+        lex_is_alphanumeric_or_underscore(input[charPointer + 2], isEnd);
+        if (isEnd = 0) {
+            charPointer := charPointer + 1;
+            keyword := TOK_OF;
+        }
     }
 
-    K_MATCH(0, 'p') K_MATCH(1, 'r') K_MATCH(2, 'o') K_MATCH(3, 'c') {
-        charPointer := charPointer + 3;
-        keyword := TOK_PROC;
+    K_MATCH(0, 'p') K_MATCH(1, 'r') K_MATCH(2, 'o') K_MATCH(3, 'c') {     
+        lex_is_alphanumeric_or_underscore(input[charPointer + 4], isEnd);
+        if (isEnd = 0) {   
+            charPointer := charPointer + 3;
+            keyword := TOK_PROC;
+        }
     }
 
-    K_MATCH(0, 'r') K_MATCH(1, 'e') K_MATCH(2, 'f') {
-        charPointer := charPointer + 2;
-        keyword := TOK_REF;
+    K_MATCH(0, 'r') K_MATCH(1, 'e') K_MATCH(2, 'f'){
+        lex_is_alphanumeric_or_underscore(input[charPointer + 3], isEnd);
+        if (isEnd = 0) {
+            charPointer := charPointer + 2;
+            keyword := TOK_REF;
+        }
     }
 
     K_MATCH(0, 't') K_MATCH(1, 'y') K_MATCH(2, 'p') K_MATCH(3, 'e') {
-        charPointer := charPointer + 3;
-        keyword := TOK_TYPE;
+        lex_is_alphanumeric_or_underscore(input[charPointer + 4], isEnd);
+        if (isEnd = 0) {
+            charPointer := charPointer + 3;
+            keyword := TOK_TYPE;
+        }
     }
 
     K_MATCH(0, 'v') K_MATCH(1, 'a') K_MATCH(2, 'r') {
-        charPointer := charPointer + 2;
-        keyword := TOK_VAR;
+        lex_is_alphanumeric_or_underscore(input[charPointer + 3], isEnd);
+        if (isEnd = 0) {
+            charPointer := charPointer + 2;
+            keyword := TOK_VAR;
+        }
     }
 }
 
@@ -1081,13 +1110,132 @@ proc parse_assgn_stmt(ref ast: DataArray, ref astPointer: int, ref tokens: DataA
     WRITE_NODE_LENGTH 
 }
 
+proc parse_if_stmt(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+
+    NODE(NODE_IF_STMT)
+    RESERVE_NODE_LENGTH
+
+    EAT_TOKEN(TOK_IF)
+    EAT_TOKEN(TOK_LPAREN)
+
+    parse_expr(ast, astPointer, tokens, tokenPointer);
+
+    EAT_TOKEN(TOK_RPAREN)
+
+    parse_stmt(ast, astPointer, tokens, tokenPointer);
+
+    if (CURR_TOK = TOK_ELSE) {
+        EAT_TOKEN(TOK_ELSE)
+        parse_stmt(ast, astPointer, tokens, tokenPointer);
+    } else {
+        NODE(NODE_EMPTY_STMT)
+        RESERVE_NODE_LENGTH
+    }
+
+    WRITE_NODE_LENGTH 
+}
+
+proc parse_compound_stmt(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+
+    NODE(NODE_COMP_STMT)
+    RESERVE_NODE_LENGTH
+
+    EAT_TOKEN(TOK_LCURL);
+    parse_stmt_list(ast, astPointer, tokens, tokenPointer);
+    EAT_TOKEN(TOK_RCURL);
+
+    WRITE_NODE_LENGTH
+}
+
+proc parse_while_stmt(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+
+    NODE(NODE_WHILE_STMT)
+    RESERVE_NODE_LENGTH
+
+    EAT_TOKEN(TOK_WHILE)
+    EAT_TOKEN(TOK_LPAREN)
+
+    parse_expr(ast, astPointer, tokens, tokenPointer);
+
+    EAT_TOKEN(TOK_RPAREN)
+
+    parse_stmt(ast, astPointer, tokens, tokenPointer);
+
+    WRITE_NODE_LENGTH 
+}
+
+proc parse_empty_stmt(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+
+    NODE(NODE_EMPTY_STMT)
+    RESERVE_NODE_LENGTH
+
+    EAT_SEMIC
+
+    WRITE_NODE_LENGTH
+}
+
+proc parse_arg_list(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+
+    NODE(NODE_ARG_LIST)
+    RESERVE_NODE_LENGTH
+
+    if (CURR_TOK # TOK_RPAREN) {
+        parse_expr(ast, astPointer, tokens, tokenPointer);
+
+        while (CURR_TOK = TOK_COMMA) {
+            EAT_TOKEN(TOK_COMMA)
+
+            parse_expr(ast, astPointer, tokens, tokenPointer);
+        }
+    }
+
+    WRITE_NODE_LENGTH
+}
+
+proc parse_call_stmt(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+
+    NODE(NODE_CALL_STMT)
+    RESERVE_NODE_LENGTH
+
+    parse_cpy_ident(ast, astPointer, tokens, tokenPointer);
+    EAT_TOKEN(TOK_IDENT)
+
+    EAT_TOKEN(TOK_LPAREN)
+    parse_arg_list(ast, astPointer, tokens, tokenPointer);
+    EAT_TOKEN(TOK_RPAREN)
+
+    EAT_SEMIC
+
+    WRITE_NODE_LENGTH
+}
+
 proc parse_stmt(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
     if (CURR_TOK = TOK_IDENT) {
-        if (PEEK_TOK = TOK_LCURL) { // TOOD: wont work
-
+        if (tokens[tokenPointer + tokens[tokenPointer + 1] + 2] = TOK_LPAREN) { // if next token is left paren
+            parse_call_stmt(ast, astPointer, tokens, tokenPointer);
         } else {
             parse_assgn_stmt(ast, astPointer, tokens, tokenPointer);
         }
+    } else if (CURR_TOK = TOK_IF) {
+        parse_if_stmt(ast, astPointer, tokens, tokenPointer);
+    } else if (CURR_TOK = TOK_LCURL) {
+        parse_compound_stmt(ast, astPointer, tokens, tokenPointer);
+    } else if (CURR_TOK = TOK_WHILE) {
+        parse_while_stmt(ast, astPointer, tokens, tokenPointer);  
+    } else if (CURR_TOK = TOK_SEMIC) {
+        parse_empty_stmt(ast, astPointer, tokens, tokenPointer);
     }
 }
 
@@ -1171,7 +1319,9 @@ proc parse_global(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray
 }
 
 proc parse_print_node_type(nodeType: int) {
-    if (nodeType = NODE_ARR_ACC) {
+    if (nodeType = NODE_ARG_LIST) {
+        PC('A') PC('R') PC('G') PC('_') PC('L') PC('I') PC('S') PC('T')    
+    } else if (nodeType = NODE_ARR_ACC) {
         PC('A') PC('R') PC('R') PC('_') PC('A') PC('C') PC('C');
     } else if (nodeType = NODE_ARR_TYPE_EXPR) {
         PC('A') PC('R') PC('R') PC('_') PC('T') PC('Y') PC('P') PC('E') PC('_') PC('E') PC('X') PC('P') PC('R')
@@ -1329,21 +1479,64 @@ proc parse_print_ast(ref ast: DataArray, ref astPointer: int) {
         parse_print_ast(ast, astPointer);
         printc(' ');
         parse_print_ast(ast, astPointer);
+    } else if (nodeType = NODE_IF_STMT) {
+        parse_print_ast(ast, astPointer);
+        printc(' ');
+        parse_print_ast(ast, astPointer);
+        printc(' ');
+        parse_print_ast(ast, astPointer);
+        printc(' ');
+    } else if (nodeType = NODE_COMP_STMT) {
+        parse_print_ast(ast, astPointer);
+    } else if (nodeType = NODE_WHILE_STMT) {
+        parse_print_ast(ast, astPointer);
+        printc(' ');
+        parse_print_ast(ast, astPointer);
+    } else if (nodeType = NODE_CALL_STMT) {
+        PRINT_AST_IDENT
+        printc(' ');
+        parse_print_ast(ast, astPointer);      
+    } else if (nodeType = NODE_ARG_LIST) {
+        t := astPointer;
+        while (astPointer < t + nodeLength) {
+            parse_print_ast(ast, astPointer);
+            if (astPointer < t + nodeLength) {
+                printc(',');
+                printc(' ');
+            }
+        }
+    } else if (nodeType = NODE_UNA_EXPR) {
+        t := ast[astPointer]; // Operator 
+        astPointer := astPointer + 1;
+        if (t = TOK_MINUS) {
+            printc('-');
+        }
+        printc(' ');
+        parse_print_ast(ast, astPointer);
+    } else if (nodeType = NODE_VAR_EXPR) {
+        parse_print_ast(ast, astPointer);   
     }
 
     printc(')');
 }
 
 proc parse(ref ast: DataArray, ref tokens: DataArray) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
     var astPointer: int;
     var tokenPointer: int;
 
     astPointer := 0;
     tokenPointer := 0;
 
+    NODE(NODE_STMT_LIST)
+    RESERVE_NODE_LENGTH
+
     while (CURR_TOK # TOK_EOF) {
         parse_global(ast, astPointer, tokens, tokenPointer);
     }
+
+    WRITE_NODE_LENGTH
 }
 
 proc main() {
