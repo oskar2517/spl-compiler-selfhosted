@@ -746,53 +746,320 @@ proc parse_var_decl(ref ast: DataArray, ref astPointer: int, ref tokens: DataArr
 }
 
 proc parse_expr(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
-    var nodeStart: int;
-    var nodeLengthPos: int;
-
-    NODE(NODE_INT_LIT)
-    RESERVE_NODE_LENGTH
-
-    AST_W(tokens[tokenPointer])
-
-    EAT_TOKEN(TOK_INT)
+    parse_comparison(ast, astPointer, tokens, tokenPointer);
 }
 
-proc parse_variable(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+proc parse_comparison(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var leftStart: int;
+    var leftEnd: int;
+    var hasOp: int;
+    var nodeLengthPos: int;
+    var nodeStart: int;
+    var op: int;
+    var i: int;
+
+    leftStart := astPointer;
+    parse_numeric(ast, astPointer, tokens, tokenPointer);
+    leftEnd := astPointer;
+
+    hasOp := 0;
+    if (CURR_TOK = TOK_LT) {
+        hasOp := 1;
+    }
+    if (CURR_TOK = TOK_LTE) {
+        hasOp := 1;
+    }
+    if (CURR_TOK = TOK_GT) {
+        hasOp := 1;
+    }
+    if (CURR_TOK = TOK_GTE) {
+        hasOp := 1;
+    }
+    if (CURR_TOK = TOK_EQUAL) {
+        hasOp := 1;
+    }
+    if (CURR_TOK = TOK_HASH) {
+        hasOp := 1;
+    }
+
+    if (hasOp # 0) {
+        i := leftEnd - 1;
+        while (i >= leftStart) {
+            ast[i + 2] := ast[i];
+            i := i - 1;
+        }
+
+        ast[leftStart] := NODE_BIN_EXPR;
+        nodeLengthPos := leftStart + 1;
+        ast[nodeLengthPos] := 0;
+        nodeStart := leftStart + 2;
+
+        astPointer := leftEnd + 2;
+
+        while (hasOp # 0) {
+            op := CURR_TOK;
+            AST_W(op);
+
+            if (op = TOK_LT) {
+                EAT_TOKEN(TOK_LT)
+            } else if (op = TOK_LTE) {
+                EAT_TOKEN(TOK_LTE)
+            } else if (op = TOK_GT) {
+                EAT_TOKEN(TOK_GT)
+            } else if (op = TOK_GTE) {
+                EAT_TOKEN(TOK_GTE)
+            } else if (op = TOK_EQUAL) {
+                EAT_TOKEN(TOK_EQUAL)
+            } else {
+                EAT_TOKEN(TOK_HASH)
+            }
+
+            parse_numeric(ast, astPointer, tokens, tokenPointer);
+
+            hasOp := 0;
+            if (CURR_TOK = TOK_LT) {
+                hasOp := 1;
+            }
+            if (CURR_TOK = TOK_LTE) {
+                hasOp := 1;
+            }
+            if (CURR_TOK = TOK_GT) {
+                hasOp := 1;
+            }
+            if (CURR_TOK = TOK_GTE) {
+                hasOp := 1;
+            }
+            if (CURR_TOK = TOK_EQUAL) {
+                hasOp := 1;
+            }
+            if (CURR_TOK = TOK_HASH) {
+                hasOp := 1;
+            }
+        }
+
+        ast[nodeLengthPos] := astPointer - nodeStart;
+    }
+}
+
+proc parse_numeric(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var leftStart: int;
+    var leftEnd: int;
+    var hasOp: int;
+    var nodeLengthPos: int;
+    var nodeStart: int;
+    var op: int;
+    var i: int;
+
+    leftStart := astPointer;
+    parse_term(ast, astPointer, tokens, tokenPointer);
+    leftEnd := astPointer;
+
+    hasOp := 0;
+    if (CURR_TOK = TOK_PLUS) {
+        hasOp := 1;
+    }
+    if (CURR_TOK = TOK_MINUS) {
+        hasOp := 1;
+    }
+
+    if (hasOp # 0) {
+        i := leftEnd - 1;
+        while (i >= leftStart) {
+            ast[i + 2] := ast[i];
+            i := i - 1;
+        }
+
+        ast[leftStart] := NODE_BIN_EXPR;
+        nodeLengthPos := leftStart + 1;
+        ast[nodeLengthPos] := 0;
+        nodeStart := leftStart + 2;
+
+        astPointer := leftEnd + 2;
+
+        while (hasOp # 0) {
+            op := CURR_TOK;
+            AST_W(op);
+
+            if (op = TOK_PLUS) {
+                EAT_TOKEN(TOK_PLUS)
+            } else {
+
+                EAT_TOKEN(TOK_MINUS)
+            }
+
+            parse_term(ast, astPointer, tokens, tokenPointer);
+
+            hasOp := 0;
+            if (CURR_TOK = TOK_PLUS) {
+                hasOp := 1;
+            }
+            if (CURR_TOK = TOK_MINUS) {
+                hasOp := 1;
+            }
+        }
+
+        ast[nodeLengthPos] := astPointer - nodeStart;
+    }
+}
+
+proc parse_term(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var leftStart: int;
+    var leftEnd: int;
+    var hasOp: int;
+    var nodeLengthPos: int;
+    var nodeStart: int;
+    var op: int;
+    var i: int;
+
+    leftStart := astPointer;
+    parse_signed_factor(ast, astPointer, tokens, tokenPointer);
+    leftEnd := astPointer;
+
+    hasOp := 0;
+    if (CURR_TOK = TOK_ASTERISK) {
+        hasOp := 1;
+    }
+    if (CURR_TOK = TOK_SLASH) {
+        hasOp := 1;
+    }
+
+    if (hasOp # 0) {
+        i := leftEnd - 1;
+        while (i >= leftStart) {
+            ast[i + 2] := ast[i];
+            i := i - 1;
+        }
+
+        ast[leftStart] := NODE_BIN_EXPR;
+        nodeLengthPos := leftStart + 1;
+        ast[nodeLengthPos] := 0;
+        nodeStart := leftStart + 2;
+
+        astPointer := leftEnd + 2;
+
+        while (hasOp # 0) {
+            op := CURR_TOK;
+            AST_W(op);
+
+            if (op = TOK_ASTERISK) {
+                EAT_TOKEN(TOK_ASTERISK)
+            } else {
+                EAT_TOKEN(TOK_SLASH)
+            }
+
+            parse_signed_factor(ast, astPointer, tokens, tokenPointer);
+
+            hasOp := 0;
+            if (CURR_TOK = TOK_ASTERISK) {
+                hasOp := 1;
+            }
+            if (CURR_TOK = TOK_SLASH) {
+                hasOp := 1;
+            }
+        }
+
+        ast[nodeLengthPos] := astPointer - nodeStart;
+    }
+
+}
+
+proc parse_signed_factor(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
     var nodeStart: int;
     var nodeLengthPos: int;
-    var identLength: int;
-    var nextTokenPos: int;
 
-    identLength := tokens[tokenPointer + 1];
-    nextTokenPos := tokenPointer + 2 + identLength;
-
-    if (tokens[nextTokenPos] = TOK_LBRACK) {
-        NODE(NODE_ARR_ACC)
+    if (CURR_TOK = TOK_MINUS) {
+        NODE(NODE_UNA_EXPR)
         RESERVE_NODE_LENGTH
 
-        // Base named variable
-        NODE(NODE_NAMED_VAR)
-        RESERVE_NODE_LENGTH
-        parse_cpy_ident(ast, astPointer, tokens, tokenPointer);
-        EAT_TOKEN(TOK_IDENT)
-        WRITE_NODE_LENGTH
+        AST_W(TOK_MINUS)
+        EAT_TOKEN(TOK_MINUS)
 
-        // One or more index expressions
-        while (CURR_TOK = TOK_LBRACK) {
-            EAT_TOKEN(TOK_LBRACK)
-            parse_expr(ast, astPointer, tokens, tokenPointer);
-            EAT_TOKEN(TOK_RBRACK)
-        }
+        parse_factor(ast, astPointer, tokens, tokenPointer);
 
         WRITE_NODE_LENGTH
     } else {
-        NODE(NODE_NAMED_VAR)
+        parse_factor(ast, astPointer, tokens, tokenPointer);
+    }
+}
+
+proc parse_factor(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+
+    if (CURR_TOK = TOK_IDENT) {
+        NODE(NODE_VAR_EXPR)
         RESERVE_NODE_LENGTH
 
-        parse_cpy_ident(ast, astPointer, tokens, tokenPointer);
-        EAT_TOKEN(TOK_IDENT)
+        parse_variable(ast, astPointer, tokens, tokenPointer);
 
         WRITE_NODE_LENGTH
+    } else if (CURR_TOK = TOK_INT) {
+        NODE(NODE_INT_LIT)
+        RESERVE_NODE_LENGTH
+
+        AST_W(CURR_TOK_V)
+        EAT_TOKEN(TOK_INT)
+
+        WRITE_NODE_LENGTH
+    } else if (CURR_TOK = TOK_CHAR) {
+        NODE(NODE_INT_LIT)
+        RESERVE_NODE_LENGTH
+
+        AST_W(CURR_TOK_V)
+        EAT_TOKEN(TOK_CHAR)
+
+        WRITE_NODE_LENGTH
+    } else if (CURR_TOK = TOK_LPAREN) {
+        EAT_TOKEN(TOK_LPAREN)
+        parse_expr(ast, astPointer, tokens, tokenPointer);
+        EAT_TOKEN(TOK_RPAREN)
+    } else {
+        exit(); // PARSE ERROR: expected expression factor
+    }
+}
+
+proc parse_variable(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var leftStart: int;
+    var leftEnd: int;
+    var nodeStart: int;
+    var nodeLengthPos: int;
+    var i: int;
+
+    leftStart := astPointer;
+
+    NODE(NODE_NAMED_VAR)
+    RESERVE_NODE_LENGTH
+
+    parse_cpy_ident(ast, astPointer, tokens, tokenPointer);
+    EAT_TOKEN(TOK_IDENT)
+
+    WRITE_NODE_LENGTH
+
+    leftEnd := astPointer;
+
+    while (CURR_TOK = TOK_LBRACK) {
+        EAT_TOKEN(TOK_LBRACK)
+
+        i := leftEnd - 1;
+        while (i >= leftStart) {
+            ast[i + 2] := ast[i];
+            i := i - 1;
+        }
+
+        ast[leftStart] := NODE_ARR_ACC;
+        nodeLengthPos := leftStart + 1;
+        ast[nodeLengthPos] := 0;
+        nodeStart := leftStart + 2;
+
+        astPointer := leftEnd + 2;
+
+        parse_expr(ast, astPointer, tokens, tokenPointer);
+
+        EAT_TOKEN(TOK_RBRACK)
+
+        ast[nodeLengthPos] := astPointer - nodeStart;
+
+        leftEnd := astPointer;
     }
 }
 
@@ -1016,6 +1283,10 @@ proc parse_print_ast(ref ast: DataArray, ref astPointer: int) {
         t := astPointer;
         while (astPointer < t + nodeLength) {
             parse_print_ast(ast, astPointer);
+            if (astPointer < t + nodeLength) {
+                printc(',');
+                printc(' ');
+            }
         }
     } else if (nodeType = NODE_ASSGN_STMT) {
         parse_print_ast(ast, astPointer);
@@ -1026,6 +1297,38 @@ proc parse_print_ast(ref ast: DataArray, ref astPointer: int) {
     } else if (nodeType = NODE_INT_LIT) {
         printi(ast[astPointer]);
         astPointer := astPointer + 1;
+    } else if (nodeType = NODE_BIN_EXPR) {
+        parse_print_ast(ast, astPointer);
+        printc(' ');
+        t := ast[astPointer]; // Operator
+        if (t = TOK_EQUAL) {
+            printc('=');
+        } else if (t = TOK_HASH) {
+            printc('#');
+        } else if (t = TOK_LT) {
+            printc('<');
+        } else if (t = TOK_LTE) {
+            printc('<'); printc('=');
+        } else if (t = TOK_GT) {
+            printc('>');
+        } else if (t = TOK_GTE) {
+            printc('>'); printc('=');
+        } else if (t = TOK_PLUS) {
+            printc('+');
+        } else if (t = TOK_MINUS) {
+            printc('-');
+        } else if (t = TOK_ASTERISK) {
+            printc('*');
+        } else if (t = TOK_SLASH) {
+            printc('/');
+        }
+        astPointer := astPointer + 1;
+        printc(' ');
+        parse_print_ast(ast, astPointer);
+    } else if (nodeType = NODE_ARR_ACC) {
+        parse_print_ast(ast, astPointer);
+        printc(' ');
+        parse_print_ast(ast, astPointer);
     }
 
     printc(')');
@@ -1061,9 +1364,9 @@ proc main() {
     parse(ast, tokens);
 
     i := 0;
-    while (i < 25) {
-    //    printi(ast[i]);
-      //  printc('\n');
+    while (i < 30) {
+        //printi(ast[i]);
+        //printc('\n');
         i := i + 1;
     }
 
