@@ -7,6 +7,14 @@ proc array_cpy(ref source: DataArray, ref target: DataArray, start: int, length:
         i := i + 1;
     }
 }
+proc print_array(ref source: DataArray, start: int, length: int) {
+    var i: int;
+    i := 0;
+    while (i < length) {
+        printc(source[start + i]);
+        i := i + 1;
+    }
+}
 proc read_input(ref input: DataArray, ref length: int) {
     var char: int;
     var index: int;
@@ -436,41 +444,315 @@ proc parse_cpy_ident(ref ast: DataArray, ref astPointer: int, ref tokens: DataAr
     astPointer := astPointer + length;
 }
 proc parse_type_expr(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
     if (tokens[tokenPointer] = 6) {
         ast[astPointer] := (1); astPointer := astPointer + 1;
+        nodeLengthPos := astPointer; ast[astPointer] := (0); astPointer := astPointer + 1; nodeStart := astPointer;
         parse_eat((6), tokens, tokenPointer);
         parse_eat((14), tokens, tokenPointer);
         ast[astPointer] := (tokens[tokenPointer + 1]); astPointer := astPointer + 1;
         parse_eat((1), tokens, tokenPointer);
         parse_eat((15), tokens, tokenPointer);
         parse_eat((7), tokens, tokenPointer);;
-        ast[astPointer] := (astPointer + 1); astPointer := astPointer + 1;;
         parse_type_expr(ast, astPointer, tokens, tokenPointer);
+        ast[nodeLengthPos] := astPointer - nodeStart;
     } else if (tokens[tokenPointer] = 0) {
         ast[astPointer] := (9); astPointer := astPointer + 1;
+        nodeLengthPos := astPointer; ast[astPointer] := (0); astPointer := astPointer + 1; nodeStart := astPointer;
         parse_cpy_ident(ast, astPointer, tokens, tokenPointer);
         parse_eat((0), tokens, tokenPointer);
+        ast[nodeLengthPos] := astPointer - nodeStart;
     } else {
         exit();
     }
 }
 proc parse_type_decl(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
-    ast[astPointer] := (13); astPointer := astPointer + 1;
+    var nodeStart: int;
+    var nodeLengthPos: int;
+    ast[astPointer] := (15); astPointer := astPointer + 1;
+    nodeLengthPos := astPointer; ast[astPointer] := (0); astPointer := astPointer + 1; nodeStart := astPointer;
     parse_eat((10), tokens, tokenPointer);
     parse_cpy_ident(ast, astPointer, tokens, tokenPointer);
     parse_eat((0), tokens, tokenPointer);
     parse_eat((18), tokens, tokenPointer);
-    ast[astPointer] := (astPointer + 1); astPointer := astPointer + 1;
     parse_type_expr(ast, astPointer, tokens, tokenPointer);
     parse_eat(29, tokens, tokenPointer);
+    ast[nodeLengthPos] := astPointer - nodeStart;
+}
+proc parse_param_decl(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+    ast[astPointer] := (11); astPointer := astPointer + 1;
+    nodeLengthPos := astPointer; ast[astPointer] := (0); astPointer := astPointer + 1; nodeStart := astPointer;
+    if (tokens[tokenPointer] = 9) {
+        ast[astPointer] := (1); astPointer := astPointer + 1;
+        parse_eat((9), tokens, tokenPointer);
+    } else {
+        ast[astPointer] := (0); astPointer := astPointer + 1;
+    }
+    parse_cpy_ident(ast, astPointer, tokens, tokenPointer);
+    parse_eat((0), tokens, tokenPointer);
+    parse_eat((28), tokens, tokenPointer);
+    parse_type_expr(ast, astPointer, tokens, tokenPointer);
+    ast[nodeLengthPos] := astPointer - nodeStart;
+}
+proc parse_param_decl_list(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+    ast[astPointer] := (12); astPointer := astPointer + 1;
+    nodeLengthPos := astPointer; ast[astPointer] := (0); astPointer := astPointer + 1; nodeStart := astPointer;
+    if (tokens[tokenPointer] # 13) {
+        parse_param_decl(ast, astPointer, tokens, tokenPointer);
+        while (tokens[tokenPointer] = 30) {
+            parse_eat((30), tokens, tokenPointer);
+            parse_param_decl(ast, astPointer, tokens, tokenPointer);
+        }
+    }
+    ast[nodeLengthPos] := astPointer - nodeStart;
+}
+proc parse_var_decl(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+    ast[astPointer] := (17); astPointer := astPointer + 1;
+    nodeLengthPos := astPointer; ast[astPointer] := (0); astPointer := astPointer + 1; nodeStart := astPointer;
+    parse_eat((11), tokens, tokenPointer);
+    parse_cpy_ident(ast, astPointer, tokens, tokenPointer);
+    parse_eat((0), tokens, tokenPointer);
+    parse_eat((28), tokens, tokenPointer);
+    parse_type_expr(ast, astPointer, tokens, tokenPointer);
+    parse_eat(29, tokens, tokenPointer);
+    ast[nodeLengthPos] := astPointer - nodeStart;
+}
+proc parse_expr(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+    ast[astPointer] := (8); astPointer := astPointer + 1;
+    nodeLengthPos := astPointer; ast[astPointer] := (0); astPointer := astPointer + 1; nodeStart := astPointer;
+    ast[astPointer] := (tokens[tokenPointer]); astPointer := astPointer + 1;
+    parse_eat((1), tokens, tokenPointer);
+}
+proc parse_variable(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+    var identLength: int;
+    var nextTokenPos: int;
+    identLength := tokens[tokenPointer + 1];
+    nextTokenPos := tokenPointer + 2 + identLength;
+    if (tokens[nextTokenPos] = 14) {
+        ast[astPointer] := (0); astPointer := astPointer + 1;
+        nodeLengthPos := astPointer; ast[astPointer] := (0); astPointer := astPointer + 1; nodeStart := astPointer;
+        ast[astPointer] := (10); astPointer := astPointer + 1;
+        nodeLengthPos := astPointer; ast[astPointer] := (0); astPointer := astPointer + 1; nodeStart := astPointer;
+        parse_cpy_ident(ast, astPointer, tokens, tokenPointer);
+        parse_eat((0), tokens, tokenPointer);
+        ast[nodeLengthPos] := astPointer - nodeStart;
+        while (tokens[tokenPointer] = 14) {
+            parse_eat((14), tokens, tokenPointer);
+            parse_expr(ast, astPointer, tokens, tokenPointer);
+            parse_eat((15), tokens, tokenPointer);
+        }
+        ast[nodeLengthPos] := astPointer - nodeStart;
+    } else {
+        ast[astPointer] := (10); astPointer := astPointer + 1;
+        nodeLengthPos := astPointer; ast[astPointer] := (0); astPointer := astPointer + 1; nodeStart := astPointer;
+        parse_cpy_ident(ast, astPointer, tokens, tokenPointer);
+        parse_eat((0), tokens, tokenPointer);
+        ast[nodeLengthPos] := astPointer - nodeStart;
+    }
+}
+proc parse_assgn_stmt(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+    ast[astPointer] := (2); astPointer := astPointer + 1;
+    nodeLengthPos := astPointer; ast[astPointer] := (0); astPointer := astPointer + 1; nodeStart := astPointer;
+    parse_variable(ast, astPointer, tokens, tokenPointer);
+    parse_eat((31), tokens, tokenPointer);
+    parse_expr(ast, astPointer, tokens, tokenPointer);
+    parse_eat(29, tokens, tokenPointer);
+    ast[nodeLengthPos] := astPointer - nodeStart;
+}
+proc parse_stmt(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    if (tokens[tokenPointer] = 0) {
+        if (tokens[tokenPointer + 1] = 16) {
+        } else {
+            parse_assgn_stmt(ast, astPointer, tokens, tokenPointer);
+        }
+    }
+}
+proc parse_stmt_list(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+    var continue: int;
+    ast[astPointer] := (14); astPointer := astPointer + 1;
+    nodeLengthPos := astPointer; ast[astPointer] := (0); astPointer := astPointer + 1; nodeStart := astPointer;
+    continue := 0;
+    if (tokens[tokenPointer] # 17) {
+        if (tokens[tokenPointer] # 32) {
+            continue := 1;
+        }
+    }
+    while (continue # 0) {
+        parse_stmt(ast, astPointer, tokens, tokenPointer);
+        continue := 0;
+        if (tokens[tokenPointer] # 17) {
+            if (tokens[tokenPointer] # 32) {
+                continue := 1;
+            }
+        }
+    }
+    ast[nodeLengthPos] := astPointer - nodeStart;
+}
+proc parse_var_decl_list(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+    ast[astPointer] := (18); astPointer := astPointer + 1;
+    nodeLengthPos := astPointer; ast[astPointer] := (0); astPointer := astPointer + 1; nodeStart := astPointer;
+    while (tokens[tokenPointer] = 11) {
+        parse_var_decl(ast, astPointer, tokens, tokenPointer);
+    }
+    ast[nodeLengthPos] := astPointer - nodeStart;
+}
+proc parse_proc_decl(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+    ast[astPointer] := (13); astPointer := astPointer + 1;
+    nodeLengthPos := astPointer; ast[astPointer] := (0); astPointer := astPointer + 1; nodeStart := astPointer;
+    parse_eat((8), tokens, tokenPointer);
+    parse_cpy_ident(ast, astPointer, tokens, tokenPointer);
+    parse_eat((0), tokens, tokenPointer);
+    parse_eat((12), tokens, tokenPointer);
+    parse_param_decl_list(ast, astPointer, tokens, tokenPointer);
+    parse_eat((13), tokens, tokenPointer);
+    parse_eat((16), tokens, tokenPointer);
+    parse_var_decl_list(ast, astPointer, tokens, tokenPointer);
+    parse_stmt_list(ast, astPointer, tokens, tokenPointer);
+    parse_eat((17), tokens, tokenPointer);
+    ast[nodeLengthPos] := astPointer - nodeStart;
 }
 proc parse_global(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
     if (tokens[tokenPointer] = 10) {
         parse_type_decl(ast, astPointer, tokens, tokenPointer);
     } else if (tokens[tokenPointer] = 8) {
+        parse_proc_decl(ast, astPointer, tokens, tokenPointer);
     } else {
         exit();
     }
+}
+proc parse_print_node_type(nodeType: int) {
+    if (nodeType = 0) {
+        printc('A'); printc('R'); printc('R'); printc('_'); printc('A'); printc('C'); printc('C');;
+    } else if (nodeType = 1) {
+        printc('A'); printc('R'); printc('R'); printc('_'); printc('T'); printc('Y'); printc('P'); printc('E'); printc('_'); printc('E'); printc('X'); printc('P'); printc('R');
+    } else if (nodeType = 2) {
+        printc('A'); printc('S'); printc('S');; printc('G'); printc('N'); printc('_'); printc('S'); printc('T'); printc('M'); printc('T');
+    } else if (nodeType = 3) {
+        printc('B'); printc('I'); printc('N'); printc('_'); printc('E'); printc('X'); printc('P'); printc('R');
+    } else if (nodeType = 4) {
+        printc('C'); printc('A'); printc('L'); printc('L'); printc('_'); printc('S'); printc('T'); printc('M'); printc('T');
+    } else if (nodeType = 5) {
+        printc('C'); printc('O'); printc('M'); printc('P'); printc('_'); printc('S'); printc('T'); printc('M'); printc('T');
+    } else if (nodeType = 6) {
+        printc('E'); printc('M'); printc('P'); printc('T'); printc('Y'); printc('_'); printc('S'); printc('T'); printc('M'); printc('T');
+    } else if (nodeType = 7) {
+        printc('I'); printc('F'); printc('_'); printc('S'); printc('T'); printc('M'); printc('T');
+    } else if (nodeType = 8) {
+        printc('I'); printc('N'); printc('T'); printc('_'); printc('L'); printc('I'); printc('T');
+    } else if (nodeType = 9) {
+        printc('N'); printc('A'); printc('M');; printc('E'); printc('D'); printc('_'); printc('T'); printc('Y'); printc('P'); printc('E'); printc('_'); printc('E'); printc('X'); printc('P'); printc('R');
+    } else if (nodeType = 10) {
+        printc('N'); printc('A'); printc('M');; printc('E'); printc('D'); printc('_'); printc('V'); printc('A'); printc('R');
+    } else if (nodeType = 11) {
+        printc('P'); printc('A'); printc('R'); printc('A'); printc('M'); printc('_'); printc('D'); printc('E'); printc('C'); printc('L');
+    } else if (nodeType = 12) {
+        printc('P'); printc('A'); printc('R'); printc('A'); printc('M'); printc('_'); printc('D'); printc('E'); printc('C'); printc('L'); printc('_'); printc('L'); printc('I'); printc('S'); printc('T');
+    } else if (nodeType = 13) {
+        printc('P'); printc('R'); printc('O'); printc('C'); printc('_'); printc('D'); printc('E'); printc('C'); printc('L');
+    } else if (nodeType = 14) {
+        printc('S'); printc('T'); printc('M'); printc('T'); printc('_'); printc('L'); printc('I'); printc('S'); printc('T');
+    } else if (nodeType = 15) {
+        printc('T'); printc('Y'); printc('P'); printc('E'); printc('_'); printc('D'); printc('E'); printc('C'); printc('L');
+    } else if (nodeType = 16) {
+        printc('U'); printc('N'); printc('A'); printc('_'); printc('E'); printc('X'); printc('P'); printc('R');
+    } else if (nodeType = 17) {
+        printc('V'); printc('A'); printc('R'); printc('_'); printc('D'); printc('E'); printc('C'); printc('L');
+    } else if (nodeType = 18) {
+        printc('V'); printc('A'); printc('R'); printc('_'); printc('D'); printc('E'); printc('C'); printc('L'); printc('_'); printc('L'); printc('I'); printc('S'); printc('T');
+    } else if (nodeType = 19) {
+        printc('V'); printc('A'); printc('R'); printc('_'); printc('E'); printc('X'); printc('P'); printc('R');
+    } else if (nodeType = 20) {
+        printc('W'); printc('H'); printc('I'); printc('L'); printc('E'); printc('_'); printc('S'); printc('T'); printc('M'); printc('T');
+    }
+}
+proc parse_print_list(ref ast: DataArray, ref astPointer: int, nodeType: int) {
+    while (ast[astPointer] = nodeType) {
+        parse_print_ast(ast, astPointer);
+        if (ast[astPointer] = nodeType) {
+            printc(','); printc(' ');
+        }
+    }
+}
+proc parse_print_ast(ref ast: DataArray, ref astPointer: int) {
+    var nodeType: int;
+    var nodeLength: int;
+    var t: int;
+    nodeType := ast[astPointer];
+    astPointer := astPointer + 1;
+    nodeLength := ast[astPointer];
+    astPointer := astPointer + 1;
+    printc('(');
+    parse_print_node_type(nodeType);
+    printc(' ');
+    if (nodeType = 15) {
+        t := ast[astPointer]; astPointer := astPointer + 1; print_array(ast, astPointer, t); astPointer := astPointer + t;
+        printc(' ');
+        parse_print_ast(ast, astPointer);
+    } else if (nodeType = 9) {
+        t := ast[astPointer]; astPointer := astPointer + 1; print_array(ast, astPointer, t); astPointer := astPointer + t;
+    } else if (nodeType = 1) {
+        printi(ast[astPointer]);
+        astPointer := astPointer + 1;
+        printc(' ');
+        parse_print_ast(ast, astPointer);
+    } else if (nodeType = 13) {
+        t := ast[astPointer]; astPointer := astPointer + 1; print_array(ast, astPointer, t); astPointer := astPointer + t;
+        printc(' ');
+        parse_print_ast(ast, astPointer);
+        printc(' ');
+        parse_print_ast(ast, astPointer);
+        printc(' ');
+        parse_print_ast(ast, astPointer);
+    } else if (nodeType = 12) {
+        parse_print_list(ast, astPointer, 11);
+    } else if (nodeType = 11) {
+        printi(ast[astPointer]);
+        astPointer := astPointer + 1;
+        printc(' ');
+        t := ast[astPointer]; astPointer := astPointer + 1; print_array(ast, astPointer, t); astPointer := astPointer + t;
+        printc(' ');
+        parse_print_ast(ast, astPointer);
+    } else if (nodeType = 18) {
+        parse_print_list(ast, astPointer, 17);
+    } else if (nodeType = 17) {
+        t := ast[astPointer]; astPointer := astPointer + 1; print_array(ast, astPointer, t); astPointer := astPointer + t;
+        printc(' ');
+        parse_print_ast(ast, astPointer);
+    } else if (nodeType = 14) {
+        t := astPointer;
+        while (astPointer < t + nodeLength) {
+            parse_print_ast(ast, astPointer);
+        }
+    } else if (nodeType = 2) {
+        parse_print_ast(ast, astPointer);
+        printc(' ');
+        parse_print_ast(ast, astPointer);
+    } else if (nodeType = 10) {
+        t := ast[astPointer]; astPointer := astPointer + 1; print_array(ast, astPointer, t); astPointer := astPointer + t;
+    } else if (nodeType = 8) {
+        printi(ast[astPointer]);
+        astPointer := astPointer + 1;
+    }
+    printc(')');
 }
 proc parse(ref ast: DataArray, ref tokens: DataArray) {
     var astPointer: int;
@@ -483,6 +765,7 @@ proc parse(ref ast: DataArray, ref tokens: DataArray) {
 }
 proc main() {
     var i: int;
+    var t: int;
     var input: DataArray;
     var inputLength: int;
     var tokenPointer: int;
@@ -492,9 +775,10 @@ proc main() {
     lex(tokens, tokenPointer, input, inputLength);
     parse(ast, tokens);
     i := 0;
-    while (i < 20) {
-        printi(ast[i]);
-        printc('\n');
+    while (i < 25) {
         i := i + 1;
     }
+    t := 0;
+    parse_print_ast(ast, t);
+    printc('\n');
 }
