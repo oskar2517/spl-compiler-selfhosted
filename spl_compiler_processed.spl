@@ -1,4 +1,150 @@
 type DataArray = array[99999] of int;
+type HashMapKeyBuffer = array[64] of int;
+type HashMapComponent = array[512] of int;
+type HashMap = array[5] of HashMapComponent;
+type SymbolTables = array[128] of HashMap;
+proc hash_string(ref data: HashMapKeyBuffer, length: int, ref result: int) {
+    var h: int;
+    var i: int;
+    var c: int;
+    h := 0;
+    i := 0;
+    while (i < length) {
+        c := data[i];
+        h := h * 31 + c;
+        i := i + 1;
+    }
+    if (h < 0) {
+        h := 0 - h;
+    }
+    result := h;
+    while (result >= 512) {
+        result := result - 512;
+    }
+}
+proc string_equals_buf_pool(
+    ref buf: HashMapKeyBuffer,
+    len1: int,
+    ref pool: HashMapComponent,
+    s2: int, len2: int,
+    ref result: int
+) {
+    var i: int;
+    var c1: int;
+    var c2: int;
+    result := 0;
+    if (len1 = len2) {
+        i := 0;
+        result := 1;
+        while (i < len1) {
+            c1 := buf[i];
+            c2 := pool[s2 + i + 1];
+            if (c1 # c2) {
+                result := 0;
+                i := len1;
+            } else {
+                i := i + 1;
+            }
+        }
+    }
+}
+proc hashmap_init(ref map: HashMap) {
+    var i: int;
+    map[4][0] := 1;
+    i := 0;
+    while (i < 512) {
+        map[3][i] := 0;
+        i := i + 1;
+    }
+}
+proc hashmap_put_str(
+    ref map: HashMap,
+    ref keyBuf: HashMapKeyBuffer,
+    keyLen: int,
+    value: int
+) {
+    var h: int;
+    var idx: int;
+    var i: int;
+    var eq: int;
+    var poolPos: int;
+    var j: int;
+    hash_string(keyBuf, keyLen, h);
+    idx := h;
+    i := 0;
+    while (i < 512) {
+        if (map[3][idx] = 0) {
+            poolPos := map[4][0];
+            j := 0;
+            while (j < keyLen) {
+                map[4][poolPos + j] := keyBuf[j];
+                j := j + 1;
+            }
+            map[4][0] := poolPos + keyLen;
+            map[3][idx] := 1;
+            map[0][idx] := poolPos - 1;
+            map[1][idx] := keyLen;
+            map[2][idx] := value;
+            i := 512;
+        } else {
+            string_equals_buf_pool(
+                keyBuf, keyLen,
+                map[4],
+                map[0][idx], map[1][idx],
+                eq
+            );
+            if (eq # 0) {
+                map[2][idx] := value;
+                i := 512;
+            } else {
+                idx := idx + 1;
+                if (idx = 512) {
+                    idx := 0;
+                }
+                i := i + 1;
+            }
+        }
+    }
+}
+proc hashmap_get_str(
+    ref map: HashMap,
+    ref keyBuf: HashMapKeyBuffer,
+    keyLen: int,
+    ref found: int,
+    ref result: int
+) {
+    var h: int;
+    var idx: int;
+    var i: int;
+    var eq: int;
+    hash_string(keyBuf, keyLen, h);
+    idx := h;
+    found := 0;
+    i := 0;
+    while (i < 512) {
+        if (map[3][idx] = 0) {
+            i := 512;
+        } else {
+            string_equals_buf_pool(
+                keyBuf, keyLen,
+                map[4],
+                map[0][idx], map[1][idx],
+                eq
+            );
+            if (eq # 0) {
+                found := 1;
+                result := map[2][idx];
+                i := 512;
+            } else {
+                idx := idx + 1;
+                if (idx = 512) {
+                    idx := 0;
+                }
+                i := i + 1;
+            }
+        }
+    }
+}
 proc array_cpy(ref source: DataArray, ref target: DataArray, start: int, length: int, startOffset: int) {
     var i: int;
     i := 0;
@@ -1019,13 +1165,13 @@ proc parse_print_node_type(nodeType: int) {
 }
 proc parse_print_list(ref ast: DataArray, ref astPointer: int, nodeType: int) {
     while (ast[astPointer] = nodeType) {
-        parse_print_ast(ast, astPointer);
+        parse_print_ast_rec(ast, astPointer);
         if (ast[astPointer] = nodeType) {
             printc(','); printc(' ');
         }
     }
 }
-proc parse_print_ast(ref ast: DataArray, ref astPointer: int) {
+proc parse_print_ast_rec(ref ast: DataArray, ref astPointer: int) {
     var nodeType: int;
     var nodeLength: int;
     var t: int;
@@ -1039,22 +1185,22 @@ proc parse_print_ast(ref ast: DataArray, ref astPointer: int) {
     if (nodeType = 16) {
         t := ast[astPointer]; astPointer := astPointer + 1; print_array(ast, astPointer, t); astPointer := astPointer + t;
         printc(' ');
-        parse_print_ast(ast, astPointer);
+        parse_print_ast_rec(ast, astPointer);
     } else if (nodeType = 10) {
         t := ast[astPointer]; astPointer := astPointer + 1; print_array(ast, astPointer, t); astPointer := astPointer + t;
     } else if (nodeType = 2) {
         printi(ast[astPointer]);
         astPointer := astPointer + 1;
         printc(' ');
-        parse_print_ast(ast, astPointer);
+        parse_print_ast_rec(ast, astPointer);
     } else if (nodeType = 14) {
         t := ast[astPointer]; astPointer := astPointer + 1; print_array(ast, astPointer, t); astPointer := astPointer + t;
         printc(' ');
-        parse_print_ast(ast, astPointer);
+        parse_print_ast_rec(ast, astPointer);
         printc(' ');
-        parse_print_ast(ast, astPointer);
+        parse_print_ast_rec(ast, astPointer);
         printc(' ');
-        parse_print_ast(ast, astPointer);
+        parse_print_ast_rec(ast, astPointer);
     } else if (nodeType = 13) {
         parse_print_list(ast, astPointer, 12);
     } else if (nodeType = 12) {
@@ -1063,33 +1209,33 @@ proc parse_print_ast(ref ast: DataArray, ref astPointer: int) {
         printc(' ');
         t := ast[astPointer]; astPointer := astPointer + 1; print_array(ast, astPointer, t); astPointer := astPointer + t;
         printc(' ');
-        parse_print_ast(ast, astPointer);
+        parse_print_ast_rec(ast, astPointer);
     } else if (nodeType = 19) {
         parse_print_list(ast, astPointer, 18);
     } else if (nodeType = 18) {
         t := ast[astPointer]; astPointer := astPointer + 1; print_array(ast, astPointer, t); astPointer := astPointer + t;
         printc(' ');
-        parse_print_ast(ast, astPointer);
+        parse_print_ast_rec(ast, astPointer);
     } else if (nodeType = 15) {
         t := astPointer;
         while (astPointer < t + nodeLength) {
-            parse_print_ast(ast, astPointer);
+            parse_print_ast_rec(ast, astPointer);
             if (astPointer < t + nodeLength) {
                 printc(',');
                 printc(' ');
             }
         }
     } else if (nodeType = 3) {
-        parse_print_ast(ast, astPointer);
+        parse_print_ast_rec(ast, astPointer);
         printc(' ');
-        parse_print_ast(ast, astPointer);
+        parse_print_ast_rec(ast, astPointer);
     } else if (nodeType = 11) {
         t := ast[astPointer]; astPointer := astPointer + 1; print_array(ast, astPointer, t); astPointer := astPointer + t;
     } else if (nodeType = 9) {
         printi(ast[astPointer]);
         astPointer := astPointer + 1;
     } else if (nodeType = 4) {
-        parse_print_ast(ast, astPointer);
+        parse_print_ast_rec(ast, astPointer);
         printc(' ');
         t := ast[astPointer];
         if (t = 18) {
@@ -1115,32 +1261,32 @@ proc parse_print_ast(ref ast: DataArray, ref astPointer: int) {
         }
         astPointer := astPointer + 1;
         printc(' ');
-        parse_print_ast(ast, astPointer);
+        parse_print_ast_rec(ast, astPointer);
     } else if (nodeType = 1) {
-        parse_print_ast(ast, astPointer);
+        parse_print_ast_rec(ast, astPointer);
         printc(' ');
-        parse_print_ast(ast, astPointer);
+        parse_print_ast_rec(ast, astPointer);
     } else if (nodeType = 8) {
-        parse_print_ast(ast, astPointer);
+        parse_print_ast_rec(ast, astPointer);
         printc(' ');
-        parse_print_ast(ast, astPointer);
+        parse_print_ast_rec(ast, astPointer);
         printc(' ');
-        parse_print_ast(ast, astPointer);
+        parse_print_ast_rec(ast, astPointer);
         printc(' ');
     } else if (nodeType = 6) {
-        parse_print_ast(ast, astPointer);
+        parse_print_ast_rec(ast, astPointer);
     } else if (nodeType = 21) {
-        parse_print_ast(ast, astPointer);
+        parse_print_ast_rec(ast, astPointer);
         printc(' ');
-        parse_print_ast(ast, astPointer);
+        parse_print_ast_rec(ast, astPointer);
     } else if (nodeType = 5) {
         t := ast[astPointer]; astPointer := astPointer + 1; print_array(ast, astPointer, t); astPointer := astPointer + t;
         printc(' ');
-        parse_print_ast(ast, astPointer);
+        parse_print_ast_rec(ast, astPointer);
     } else if (nodeType = 0) {
         t := astPointer;
         while (astPointer < t + nodeLength) {
-            parse_print_ast(ast, astPointer);
+            parse_print_ast_rec(ast, astPointer);
             if (astPointer < t + nodeLength) {
                 printc(',');
                 printc(' ');
@@ -1153,11 +1299,17 @@ proc parse_print_ast(ref ast: DataArray, ref astPointer: int) {
             printc('-');
         }
         printc(' ');
-        parse_print_ast(ast, astPointer);
+        parse_print_ast_rec(ast, astPointer);
     } else if (nodeType = 20) {
-        parse_print_ast(ast, astPointer);
+        parse_print_ast_rec(ast, astPointer);
     }
     printc(')');
+}
+proc parse_print_ast(ref ast: DataArray) {
+    var astPointer: int;
+    astPointer := 0;
+    parse_print_ast_rec(ast, astPointer);
+    printc('\n');
 }
 proc parse(ref ast: DataArray, ref tokens: DataArray) {
     var nodeStart: int;
@@ -1173,22 +1325,173 @@ proc parse(ref ast: DataArray, ref tokens: DataArray) {
     }
     ast[nodeLengthPos] := astPointer - nodeStart;
 }
-proc main() {
+proc name_analysis_rec(ref ast: DataArray) {
+}
+proc name_analysis(ref ast: DataArray) {
+}
+proc init_global_table(ref table: HashMap, headless: int, ref entries: DataArray, ref entryPointer: int) {
+    var keyBuf: HashMapKeyBuffer;
+    keyBuf[0] := 'i';
+    keyBuf[1] := 'n';
+    keyBuf[2] := 't';
+    hashmap_put_str(table, keyBuf, 3, entryPointer);
+    entries[entryPointer] := 1; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 1; entryPointer := entryPointer + 1;
+    keyBuf[0] := 'p';
+    keyBuf[1] := 'r';
+    keyBuf[2] := 'i';
+    keyBuf[3] := 'n';
+    keyBuf[4] := 't';
+    keyBuf[5] := 'i';
+    hashmap_put_str(table, keyBuf, 6, entryPointer);
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 1; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 1; entryPointer := entryPointer + 1;
+    keyBuf[0] := 'p';
+    keyBuf[1] := 'r';
+    keyBuf[2] := 'i';
+    keyBuf[3] := 'n';
+    keyBuf[4] := 't';
+    keyBuf[5] := 'c';
+    hashmap_put_str(table, keyBuf, 6, entryPointer);
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 1; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 1; entryPointer := entryPointer + 1;
+    keyBuf[0] := 'r';
+    keyBuf[1] := 'e';
+    keyBuf[2] := 'a';
+    keyBuf[3] := 'd';
+    keyBuf[4] := 'i';
+    hashmap_put_str(table, keyBuf, 5, entryPointer);
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 1; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 1; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 1; entryPointer := entryPointer + 1;
+    keyBuf[0] := 'r';
+    keyBuf[1] := 'e';
+    keyBuf[2] := 'a';
+    keyBuf[3] := 'd';
+    keyBuf[4] := 'c';
+    hashmap_put_str(table, keyBuf, 5, entryPointer);
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 1; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 1; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 1; entryPointer := entryPointer + 1;
+    keyBuf[0] := 'e';
+    keyBuf[1] := 'x';
+    keyBuf[2] := 'i';
+    keyBuf[3] := 't';
+    hashmap_put_str(table, keyBuf, 4, entryPointer);
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    keyBuf[0] := 't';
+    keyBuf[1] := 'i';
+    keyBuf[2] := 'm';
+    keyBuf[3] := 'e';
+    hashmap_put_str(table, keyBuf, 4, entryPointer);
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 1; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 1; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 1; entryPointer := entryPointer + 1;
+}
+proc print_type(ref entries: DataArray, ref entryPointer: int) {
+    var head: int;
+    head := entries[entryPointer];
+    entryPointer := entryPointer + 1;
+    if (head = 1) {
+        printc('i'); printc('n'); printc('t');
+    } else if (head = 2) {
+        printc('b'); printc('o'); printc('o'); printc('l');
+    } else if (head = 0) {
+        printc('a'); printc('r'); printc('r'); printc('a'); printc('y');
+        printc('[');
+        printi(entries[entryPointer]);
+        entryPointer := entryPointer + 1;
+        printc(']');
+        printc(' '); printc('o'); printc('f'); printc(' ');
+        print_type(entries, entryPointer);
+    } else {
+        exit();
+    }
+}
+proc print_procedure_type(ref entries: DataArray, ref entryPointer: int) {
     var i: int;
-    var t: int;
+    var parameterCount: int;
+    var isReference: int;
+    parameterCount := entries[entryPointer];
+    entryPointer := entryPointer + 1;
+    i := 0;
+    while (i < parameterCount) {
+        isReference := entries[entryPointer];
+        entryPointer := entryPointer + 1;
+        if (isReference # 0) {
+            printc('r'); printc('e'); printc('f'); printc(' ');
+        }
+        print_type(entries, entryPointer);
+        i := i + 1;
+    }
+}
+proc print_table(ref symbolTable: HashMap, ref entries: DataArray) {
+    var i: int;
+    var start: int;
+    var len: int;
+    var j: int;
+    var c: int;
+    var valueFound: int;
+    var entryPointer: int;
+    var keyBuf: HashMapKeyBuffer;
+    i := 0;
+    while (i < 512) {
+        if (symbolTable[3][i] # 0) {
+            start := symbolTable[0][i];
+            len := symbolTable[1][i];
+            j := 0;
+            while (j < len) {
+                c := symbolTable[4][start + j + 1];
+                printc(c);
+                keyBuf[j] := c;
+                j := j + 1;
+            }
+            printc(' '); printc('-'); printc('-'); printc('>'); printc(' ');
+            hashmap_get_str(symbolTable, keyBuf, j, valueFound, entryPointer);
+            if (entries[entryPointer] = 1) {
+                entryPointer := entryPointer + 1;
+                printc('t'); printc('y'); printc('p'); printc('e'); printc(':'); printc(' ');
+                print_type(entries, entryPointer);
+            } else if (entries[entryPointer] = 0) {
+                entryPointer := entryPointer + 1;
+                printc('p'); printc('r'); printc('o'); printc('c'); printc(':'); printc(' ');
+                print_procedure_type(entries, entryPointer);
+            }
+            printc('\n');
+        }
+        i := i + 1;
+    }
+}
+proc init_table_maps(ref symbolTables: SymbolTables) {
+    var i: int;
+    i := 0;
+    while (i < 128) {
+        hashmap_init(symbolTables[i]);
+        i := i + 1;
+    }
+}
+proc main() {
     var input: DataArray;
     var inputLength: int;
     var tokenPointer: int;
     var tokens: DataArray;
     var ast: DataArray;
+    var symbolTables: SymbolTables;
+    var symbolTableEntries: DataArray;
+    var symbolTableEntryPointer: int;
     read_input(input, inputLength);
     lex(tokens, tokenPointer, input, inputLength);
     parse(ast, tokens);
-    i := 0;
-    while (i < 30) {
-        i := i + 1;
-    }
-    t := 0;
-    parse_print_ast(ast, t);
-    printc('\n');
+    init_table_maps(symbolTables);
+    symbolTableEntryPointer := 0;
+    init_global_table(symbolTables[0], 0, symbolTableEntries, symbolTableEntryPointer);
+    print_table(symbolTables[0], symbolTableEntries);
 }
