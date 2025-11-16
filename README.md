@@ -5,6 +5,6 @@ Compiler for SPL (Simple Programming Language) written in SPL itself.
 ## Progress
 
 - [x] Lexer
-- [ ] Parser
+- [x] Parser
 - [ ] Semantic Analysis
 - [ ] Code Generation
