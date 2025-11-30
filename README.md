@@ -7,6 +7,6 @@ Compiler for SPL (Simple Programming Language) written in SPL itself.
 - [x] Lexer
 - [x] Parser
 - [x] Name Analysis
-- [ ] Semantic Analysis
+- [X] Semantic Analysis
 - [ ] Allocation
 - [ ] Code Generation

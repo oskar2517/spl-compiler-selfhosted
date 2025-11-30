@@ -294,7 +294,7 @@ proc lex_read_char_lit(ref input: DataArray, ref charPointer: int, ref tokens: D
             charPointer := charPointer + 1;
             readChar := '\n';
         } else {
-            exit();
+            readChar := 0x5C;
         }
     } else {
         readChar := input[charPointer];
@@ -733,55 +733,55 @@ proc parse_comparison(ref ast: DataArray, ref astPointer: int, ref tokens: DataA
     if (tokens[tokenPointer] = 18) {
         hasOp := 1;
     }
-    if (hasOp # 0) {
+    while (hasOp # 0) {
         i := leftEnd - 1;
         while (i >= leftStart) {
-            ast[i + 2] := ast[i];
+            ast[i + 3] := ast[i];
             i := i - 1;
         }
         ast[leftStart] := 4;
         nodeLengthPos := leftStart + 1;
         ast[nodeLengthPos] := 0;
+        ast[leftStart + 2] := 0;
         nodeStart := leftStart + 2;
-        astPointer := leftEnd + 2;
-        while (hasOp # 0) {
-            op := tokens[tokenPointer];
-            ast[astPointer] := (op); astPointer := astPointer + 1;;
-            if (op = 19) {
-                parse_eat((19), tokens, tokenPointer);
-            } else if (op = 20) {
-                parse_eat((20), tokens, tokenPointer);
-            } else if (op = 21) {
-                parse_eat((21), tokens, tokenPointer);
-            } else if (op = 22) {
-                parse_eat((22), tokens, tokenPointer);
-            } else if (op = 17) {
-                parse_eat((17), tokens, tokenPointer);
-            } else {
-                parse_eat((18), tokens, tokenPointer);
-            }
-            parse_numeric(ast, astPointer, tokens, tokenPointer);
-            hasOp := 0;
-            if (tokens[tokenPointer] = 19) {
-                hasOp := 1;
-            }
-            if (tokens[tokenPointer] = 20) {
-                hasOp := 1;
-            }
-            if (tokens[tokenPointer] = 21) {
-                hasOp := 1;
-            }
-            if (tokens[tokenPointer] = 22) {
-                hasOp := 1;
-            }
-            if (tokens[tokenPointer] = 17) {
-                hasOp := 1;
-            }
-            if (tokens[tokenPointer] = 18) {
-                hasOp := 1;
-            }
+        astPointer := leftEnd + 3;
+        op := tokens[tokenPointer];
+        ast[astPointer] := (op); astPointer := astPointer + 1;;
+        if (op = 19) {
+            parse_eat((19), tokens, tokenPointer);
+        } else if (op = 20) {
+            parse_eat((20), tokens, tokenPointer);
+        } else if (op = 21) {
+            parse_eat((21), tokens, tokenPointer);
+        } else if (op = 22) {
+            parse_eat((22), tokens, tokenPointer);
+        } else if (op = 17) {
+            parse_eat((17), tokens, tokenPointer);
+        } else {
+            parse_eat((18), tokens, tokenPointer);
         }
+        parse_numeric(ast, astPointer, tokens, tokenPointer);
         ast[nodeLengthPos] := astPointer - nodeStart;
+        leftEnd := astPointer;
+        hasOp := 0;
+        if (tokens[tokenPointer] = 19) {
+            hasOp := 1;
+        }
+        if (tokens[tokenPointer] = 20) {
+            hasOp := 1;
+        }
+        if (tokens[tokenPointer] = 21) {
+            hasOp := 1;
+        }
+        if (tokens[tokenPointer] = 22) {
+            hasOp := 1;
+        }
+        if (tokens[tokenPointer] = 17) {
+            hasOp := 1;
+        }
+        if (tokens[tokenPointer] = 18) {
+            hasOp := 1;
+        }
     }
 }
 proc parse_numeric(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
@@ -802,35 +802,35 @@ proc parse_numeric(ref ast: DataArray, ref astPointer: int, ref tokens: DataArra
     if (tokens[tokenPointer] = 24) {
         hasOp := 1;
     }
-    if (hasOp # 0) {
+    while (hasOp # 0) {
         i := leftEnd - 1;
         while (i >= leftStart) {
-            ast[i + 2] := ast[i];
+            ast[i + 3] := ast[i];
             i := i - 1;
         }
         ast[leftStart] := 4;
         nodeLengthPos := leftStart + 1;
         ast[nodeLengthPos] := 0;
+        ast[leftStart + 2] := 0;
         nodeStart := leftStart + 2;
-        astPointer := leftEnd + 2;
-        while (hasOp # 0) {
-            op := tokens[tokenPointer];
-            ast[astPointer] := (op); astPointer := astPointer + 1;;
-            if (op = 23) {
-                parse_eat((23), tokens, tokenPointer);
-            } else {
-                parse_eat((24), tokens, tokenPointer);
-            }
-            parse_term(ast, astPointer, tokens, tokenPointer);
-            hasOp := 0;
-            if (tokens[tokenPointer] = 23) {
-                hasOp := 1;
-            }
-            if (tokens[tokenPointer] = 24) {
-                hasOp := 1;
-            }
+        astPointer := leftEnd + 3;
+        op := tokens[tokenPointer];
+        ast[astPointer] := (op); astPointer := astPointer + 1;;
+        if (op = 23) {
+            parse_eat((23), tokens, tokenPointer);
+        } else {
+            parse_eat((24), tokens, tokenPointer);
         }
+        parse_term(ast, astPointer, tokens, tokenPointer);
         ast[nodeLengthPos] := astPointer - nodeStart;
+        leftEnd := astPointer;
+        hasOp := 0;
+        if (tokens[tokenPointer] = 23) {
+            hasOp := 1;
+        }
+        if (tokens[tokenPointer] = 24) {
+            hasOp := 1;
+        }
     }
 }
 proc parse_term(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
@@ -851,35 +851,35 @@ proc parse_term(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, 
     if (tokens[tokenPointer] = 26) {
         hasOp := 1;
     }
-    if (hasOp # 0) {
+    while (hasOp # 0) {
         i := leftEnd - 1;
         while (i >= leftStart) {
-            ast[i + 2] := ast[i];
+            ast[i + 3] := ast[i];
             i := i - 1;
         }
         ast[leftStart] := 4;
         nodeLengthPos := leftStart + 1;
         ast[nodeLengthPos] := 0;
+        ast[leftStart + 2] := 0;
         nodeStart := leftStart + 2;
-        astPointer := leftEnd + 2;
-        while (hasOp # 0) {
-            op := tokens[tokenPointer];
-            ast[astPointer] := (op); astPointer := astPointer + 1;;
-            if (op = 25) {
-                parse_eat((25), tokens, tokenPointer);
-            } else {
-                parse_eat((26), tokens, tokenPointer);
-            }
-            parse_signed_factor(ast, astPointer, tokens, tokenPointer);
-            hasOp := 0;
-            if (tokens[tokenPointer] = 25) {
-                hasOp := 1;
-            }
-            if (tokens[tokenPointer] = 26) {
-                hasOp := 1;
-            }
+        astPointer := leftEnd + 3;
+        op := tokens[tokenPointer];
+        ast[astPointer] := (op); astPointer := astPointer + 1;;
+        if (op = 25) {
+            parse_eat((25), tokens, tokenPointer);
+        } else {
+            parse_eat((26), tokens, tokenPointer);
         }
+        parse_signed_factor(ast, astPointer, tokens, tokenPointer);
         ast[nodeLengthPos] := astPointer - nodeStart;
+        leftEnd := astPointer;
+        hasOp := 0;
+        if (tokens[tokenPointer] = 25) {
+            hasOp := 1;
+        }
+        if (tokens[tokenPointer] = 26) {
+            hasOp := 1;
+        }
     }
 }
 proc parse_signed_factor(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
@@ -888,6 +888,7 @@ proc parse_signed_factor(ref ast: DataArray, ref astPointer: int, ref tokens: Da
     if (tokens[tokenPointer] = 24) {
         ast[astPointer] := (17); astPointer := astPointer + 1;
         nodeLengthPos := astPointer; ast[astPointer] := (0); astPointer := astPointer + 1; nodeStart := astPointer;
+        ast[astPointer] := (0); astPointer := astPointer + 1;
         ast[astPointer] := (24); astPointer := astPointer + 1;
         parse_eat((24), tokens, tokenPointer);
         parse_factor(ast, astPointer, tokens, tokenPointer);
@@ -902,11 +903,13 @@ proc parse_factor(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray
     if (tokens[tokenPointer] = 0) {
         ast[astPointer] := (20); astPointer := astPointer + 1;
         nodeLengthPos := astPointer; ast[astPointer] := (0); astPointer := astPointer + 1; nodeStart := astPointer;
+        ast[astPointer] := (0); astPointer := astPointer + 1;
         parse_variable(ast, astPointer, tokens, tokenPointer);
         ast[nodeLengthPos] := astPointer - nodeStart;
     } else if (tokens[tokenPointer] = 1) {
         ast[astPointer] := (9); astPointer := astPointer + 1;
         nodeLengthPos := astPointer; ast[astPointer] := (0); astPointer := astPointer + 1; nodeStart := astPointer;
+        ast[astPointer] := (0); astPointer := astPointer + 1;
         ast[astPointer] := (tokens[tokenPointer + 1]); astPointer := astPointer + 1;
         parse_eat((1), tokens, tokenPointer);
         ast[nodeLengthPos] := astPointer - nodeStart;
@@ -927,6 +930,7 @@ proc parse_variable(ref ast: DataArray, ref astPointer: int, ref tokens: DataArr
     leftStart := astPointer;
     ast[astPointer] := (11); astPointer := astPointer + 1;
     nodeLengthPos := astPointer; ast[astPointer] := (0); astPointer := astPointer + 1; nodeStart := astPointer;
+    ast[astPointer] := (0); astPointer := astPointer + 1;
     parse_cpy_ident(ast, astPointer, tokens, tokenPointer);
     parse_eat((0), tokens, tokenPointer);
     ast[nodeLengthPos] := astPointer - nodeStart;
@@ -935,14 +939,15 @@ proc parse_variable(ref ast: DataArray, ref astPointer: int, ref tokens: DataArr
         parse_eat((13), tokens, tokenPointer);
         i := leftEnd - 1;
         while (i >= leftStart) {
-            ast[i + 2] := ast[i];
+            ast[i + 3] := ast[i];
             i := i - 1;
         }
         ast[leftStart] := 1;
         nodeLengthPos := leftStart + 1;
         ast[nodeLengthPos] := 0;
+        ast[leftStart + 2] := 0;
         nodeStart := leftStart + 2;
-        astPointer := leftEnd + 2;
+        astPointer := leftEnd + 3;
         parse_expr(ast, astPointer, tokens, tokenPointer);
         parse_eat((14), tokens, tokenPointer);
         ast[nodeLengthPos] := astPointer - nodeStart;
@@ -1229,11 +1234,14 @@ proc parse_print_ast_rec(ref ast: DataArray, ref astPointer: int) {
         printc(' ');
         parse_print_ast_rec(ast, astPointer);
     } else if (nodeType = 11) {
+        astPointer := astPointer + 1;
         t := ast[astPointer]; astPointer := astPointer + 1; print_array(ast, astPointer, t); astPointer := astPointer + t;
     } else if (nodeType = 9) {
+        astPointer := astPointer + 1;
         printi(ast[astPointer]);
         astPointer := astPointer + 1;
     } else if (nodeType = 4) {
+        astPointer := astPointer + 1;
         parse_print_ast_rec(ast, astPointer);
         printc(' ');
         t := ast[astPointer];
@@ -1262,6 +1270,7 @@ proc parse_print_ast_rec(ref ast: DataArray, ref astPointer: int) {
         printc(' ');
         parse_print_ast_rec(ast, astPointer);
     } else if (nodeType = 1) {
+        astPointer := astPointer + 1;
         parse_print_ast_rec(ast, astPointer);
         printc(' ');
         parse_print_ast_rec(ast, astPointer);
@@ -1292,6 +1301,7 @@ proc parse_print_ast_rec(ref ast: DataArray, ref astPointer: int) {
             }
         }
     } else if (nodeType = 17) {
+        astPointer := astPointer + 1;
         t := ast[astPointer];
         astPointer := astPointer + 1;
         if (t = 24) {
@@ -1300,6 +1310,7 @@ proc parse_print_ast_rec(ref ast: DataArray, ref astPointer: int) {
         printc(' ');
         parse_print_ast_rec(ast, astPointer);
     } else if (nodeType = 20) {
+        astPointer := astPointer + 1;
         parse_print_ast_rec(ast, astPointer);
     }
     printc(')');
@@ -1326,7 +1337,7 @@ proc parse(ref ast: DataArray, ref tokens: DataArray) {
 }
 proc symbol_table_lookup(
     ref symbolTables: SymbolTables,
-    ref tablePointer: int,
+    tablePointer: int,
     ref keyBuf: HashMapKeyBuffer,
     keyLen: int,
     ref found: int,
@@ -1474,6 +1485,7 @@ proc name_analysis_param_decl(
     var entryStart: int;
     var isReference: int;
     var dataType: int;
+    var resolvedType: int;
     dataType := astPointer;
     astPointer := astPointer + 1;
     isReference := ast[astPointer];
@@ -1486,7 +1498,8 @@ proc name_analysis_param_decl(
         + 1
         + 1;
     name_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
-    if (entries[ast[typeIndex]] = 0) {
+    resolve_type_ref(ast[typeIndex], entries, resolvedType);
+    if (entries[resolvedType] = 0) {
         if (isReference # 1) {
             exit();
         }
@@ -1615,6 +1628,7 @@ proc name_analysis(ref ast: DataArray, ref symbolTables: SymbolTables, ref symbo
 }
 proc init_global_table(ref table: HashMap, headless: int, ref entries: DataArray, ref entryPointer: int) {
     var keyBuf: HashMapKeyBuffer;
+    entries[entryPointer] := 2; entryPointer := entryPointer + 1;
     keyBuf[0] := 'i';
     keyBuf[1] := 'n';
     keyBuf[2] := 't';
@@ -1632,7 +1646,8 @@ proc init_global_table(ref table: HashMap, headless: int, ref entries: DataArray
     entries[entryPointer] := -1; entryPointer := entryPointer + 1;
     entries[entryPointer] := 1; entryPointer := entryPointer + 1;
     entries[entryPointer] := 0; entryPointer := entryPointer + 1;
-    entries[entryPointer] := 1; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 3; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 2; entryPointer := entryPointer + 1;
     keyBuf[0] := 'p';
     keyBuf[1] := 'r';
     keyBuf[2] := 'i';
@@ -1644,7 +1659,8 @@ proc init_global_table(ref table: HashMap, headless: int, ref entries: DataArray
     entries[entryPointer] := -1; entryPointer := entryPointer + 1;
     entries[entryPointer] := 1; entryPointer := entryPointer + 1;
     entries[entryPointer] := 0; entryPointer := entryPointer + 1;
-    entries[entryPointer] := 1; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 3; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 2; entryPointer := entryPointer + 1;
     keyBuf[0] := 'r';
     keyBuf[1] := 'e';
     keyBuf[2] := 'a';
@@ -1655,7 +1671,8 @@ proc init_global_table(ref table: HashMap, headless: int, ref entries: DataArray
     entries[entryPointer] := -1; entryPointer := entryPointer + 1;
     entries[entryPointer] := 1; entryPointer := entryPointer + 1;
     entries[entryPointer] := 1; entryPointer := entryPointer + 1;
-    entries[entryPointer] := 1; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 3; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 2; entryPointer := entryPointer + 1;
     keyBuf[0] := 'r';
     keyBuf[1] := 'e';
     keyBuf[2] := 'a';
@@ -1666,7 +1683,8 @@ proc init_global_table(ref table: HashMap, headless: int, ref entries: DataArray
     entries[entryPointer] := -1; entryPointer := entryPointer + 1;
     entries[entryPointer] := 1; entryPointer := entryPointer + 1;
     entries[entryPointer] := 1; entryPointer := entryPointer + 1;
-    entries[entryPointer] := 1; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 3; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 2; entryPointer := entryPointer + 1;
     keyBuf[0] := 'e';
     keyBuf[1] := 'x';
     keyBuf[2] := 'i';
@@ -1684,7 +1702,8 @@ proc init_global_table(ref table: HashMap, headless: int, ref entries: DataArray
     entries[entryPointer] := -1; entryPointer := entryPointer + 1;
     entries[entryPointer] := 1; entryPointer := entryPointer + 1;
     entries[entryPointer] := 1; entryPointer := entryPointer + 1;
-    entries[entryPointer] := 1; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 3; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 2; entryPointer := entryPointer + 1;
 }
 proc print_type(ref entries: DataArray, ref entryPointer: int) {
     var head: int;
@@ -1803,6 +1822,363 @@ proc init_table_maps(ref symbolTables: SymbolTables) {
         i := i + 1;
     }
 }
+proc semantic_analysis_proc_decl(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var procNameStart: int;
+    var procNameLen: int;
+    var procEntryIndex: int;
+    var procEntryFound: int;
+    var localTablePointer: int;
+    procNameLen := ast[astPointer];
+    astPointer := astPointer + 1;
+    procNameStart := astPointer;
+    astPointer := astPointer + procNameLen;
+    hashmap_cpy_key(ast, keyBuf, procNameStart, procNameLen);
+    symbol_table_lookup(symbolTables, 0, keyBuf, procNameLen, procEntryFound, procEntryIndex);
+    localTablePointer := entries[procEntryIndex + 1];
+    astPointer := astPointer + 1 + 1 + ast[astPointer + 1];
+    astPointer := astPointer + 1 + 1 + ast[astPointer + 1];
+    semantic_analysis_rec(ast, astPointer, symbolTables, localTablePointer, entries, entryPointer, keyBuf);
+}
+proc resolve_type_ref(typeIndex: int, ref entries: DataArray, ref r: int) {
+    if (entries[typeIndex] = 3) {
+        resolve_type_ref(entries[typeIndex + 1], entries, r);
+    } else {
+        r := typeIndex;
+    }
+}
+proc compare_types(left: int, right: int, ref entries: DataArray) {
+    var leftResolved: int;
+    var rightResolved: int;
+    resolve_type_ref(left, entries, leftResolved);
+    resolve_type_ref(right, entries, rightResolved);
+    if (leftResolved # rightResolved) {
+        printi(1);
+        exit();
+    }
+}
+proc semantic_analysis_assgn_stmt(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var targetTypeIndex: int;
+    var valueTypeIndex: int;
+    targetTypeIndex := astPointer + 1 + 1;
+    semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    valueTypeIndex := astPointer + 1 + 1;
+    semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    compare_types(ast[targetTypeIndex], ast[valueTypeIndex], entries);
+    compare_types(ast[valueTypeIndex], 2, entries);
+}
+proc semantic_analysis_una_expr(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var thisTypeIndex: int;
+    var operator: int;
+    var operandType: int;
+    thisTypeIndex := astPointer;
+    astPointer := astPointer + 1;
+    operator := ast[astPointer];
+    astPointer := astPointer + 1;
+    operandType := astPointer + 1 + 1;
+    semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    compare_types(ast[operandType], 2, entries);
+    ast[thisTypeIndex] := ast[operandType];
+}
+proc semantic_analysis_named_var(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var nameStart: int;
+    var nameLen: int;
+    var entryFound: int;
+    var entryIndex: int;
+    var typeIndex: int;
+    typeIndex := astPointer;
+    astPointer := astPointer + 1;
+    nameLen := ast[astPointer];
+    astPointer := astPointer + 1;
+    nameStart := astPointer;
+    astPointer := astPointer + nameLen;
+    hashmap_cpy_key(ast, keyBuf, nameStart, nameLen);
+    symbol_table_lookup(symbolTables, tablePointer, keyBuf, nameLen, entryFound, entryIndex);
+    if (entryFound # 1) {
+        exit();
+    }
+    if (entries[entryIndex] # 2) {
+        exit();
+    }
+    ast[typeIndex] := entryIndex + 2;
+}
+proc semantic_analysis_int_lit(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    ast[astPointer] := 2;
+    astPointer := astPointer + 1 + 1;
+}
+proc semantic_analysis_arr_acc(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var thisTypeIndex: int;
+    var arrayTypeIndex: int;
+    var indexTypeIndex: int;
+    var resolvedArrayTypeIndex: int;
+    thisTypeIndex := astPointer;
+    astPointer := astPointer + 1;
+    arrayTypeIndex := astPointer + 1 + 1;
+    semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    resolve_type_ref(ast[arrayTypeIndex], entries, resolvedArrayTypeIndex);
+    if (entries[resolvedArrayTypeIndex] # 0) {
+        exit();
+    }
+    ast[thisTypeIndex] := resolvedArrayTypeIndex + 2;
+    indexTypeIndex := astPointer + 1 + 1;
+    semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    compare_types(ast[indexTypeIndex], 2, entries);
+}
+proc semantic_analysis_bin_expr(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var thisTypeIndex: int;
+    var leftTypeIndex: int;
+    var rightTypeIndex: int;
+    var operator: int;
+    thisTypeIndex := astPointer;
+    astPointer := astPointer + 1;
+    leftTypeIndex := astPointer + 1 + 1;
+    semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    operator := ast[astPointer];
+    astPointer := astPointer + 1;
+    rightTypeIndex := astPointer + 1 + 1;
+    semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    compare_types(ast[leftTypeIndex], 2, entries);
+    compare_types(ast[rightTypeIndex], 2, entries);
+    if (operator = 23) {
+        ast[thisTypeIndex] := 2;
+    } else if (operator = 24) {
+        ast[thisTypeIndex] := 2;
+    } else if (operator = 25) {
+        ast[thisTypeIndex] := 2;
+    } else if (operator = 26) {
+        ast[thisTypeIndex] := 2;
+    } else if (operator = 19) {
+        ast[thisTypeIndex] := 0;
+    } else if (operator = 20) {
+        ast[thisTypeIndex] := 0;
+    } else if (operator = 21) {
+        ast[thisTypeIndex] := 0;
+    } else if (operator = 22) {
+        ast[thisTypeIndex] := 0;
+    } else if (operator = 17) {
+        ast[thisTypeIndex] := 0;
+    } else if (operator = 18) {
+        ast[thisTypeIndex] := 0;
+    } else {
+        exit();
+    }
+}
+proc semantic_analysis_if_stmt(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var conditionTypeIndex: int;
+    conditionTypeIndex := astPointer + 1 + 1;
+    semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    compare_types(ast[conditionTypeIndex], 0, entries);
+    semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+}
+proc semantic_analysis_while_stmt(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var conditionTypeIndex: int;
+    conditionTypeIndex := astPointer + 1 + 1;
+    semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    compare_types(ast[conditionTypeIndex], 0, entries);
+    semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+}
+proc semantic_analysis_var_expr(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var thisTypeIndex: int;
+    var childTypeIndex: int;
+    thisTypeIndex := astPointer;
+    astPointer := astPointer + 1;
+    childTypeIndex := astPointer + 1 + 1;
+    semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    ast[thisTypeIndex] := ast[childTypeIndex];
+}
+proc semantic_analysis_call_stmt(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var nameStart: int;
+    var nameLen: int;
+    var entryFound: int;
+    var entryIndex: int;
+    var argsCounter: int;
+    var argsEndIndex: int;
+    var paramCount: int;
+    var paramListStart: int;
+    var currParamIndex: int;
+    var currArgTypeIndex: int;
+    var argsCountingIndex: int;
+    nameLen := ast[astPointer];
+    astPointer := astPointer + 1;
+    nameStart := astPointer;
+    astPointer := astPointer + nameLen;
+    hashmap_cpy_key(ast, keyBuf, nameStart, nameLen);
+    symbol_table_lookup(symbolTables, tablePointer, keyBuf, nameLen, entryFound, entryIndex);
+    if (entries[entryIndex] # 0) {
+        exit();
+    }
+    paramListStart := entryIndex + 3;
+    paramCount := entries[entryIndex + 2];
+    astPointer := astPointer + 1;
+    argsEndIndex := astPointer + ast[astPointer];
+    astPointer := astPointer + 1;
+    argsCounter := 0;
+    argsCountingIndex := astPointer;
+    while (argsCountingIndex < argsEndIndex) {
+        argsCountingIndex := argsCountingIndex + 1 + 1 + ast[argsCountingIndex + 1];
+        argsCounter := argsCounter + 1;
+    }
+    if (argsCounter # paramCount) {
+        exit();
+    }
+    argsCounter := 0;
+    while (astPointer < argsEndIndex) {
+        currParamIndex := paramListStart + argsCounter * 3;
+        if (entries[currParamIndex] # 0) {
+            if (ast[astPointer] # 20) {
+                exit();
+            }
+        }
+        currArgTypeIndex := astPointer + 1 + 1;
+        semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+        compare_types(ast[currArgTypeIndex], currParamIndex + 1, entries);
+        argsCounter := argsCounter + 1;
+    }
+}
+proc semantic_analysis_rec(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var nodeType: int;
+    var nodeLength: int;
+    var t: int;
+    nodeType := ast[astPointer];
+    astPointer := astPointer + 1;
+    nodeLength := ast[astPointer];
+    astPointer := astPointer + 1;
+    if (nodeType = 15) {
+        t := astPointer;
+        while (astPointer < t + nodeLength) {
+            semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+        }
+    } else if (nodeType = 14) {
+        semantic_analysis_proc_decl(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    } else if (nodeType = 3) {
+        semantic_analysis_assgn_stmt(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    } else if (nodeType = 17) {
+        semantic_analysis_una_expr(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    } else if (nodeType = 11) {
+        semantic_analysis_named_var(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    } else if (nodeType = 9) {
+        semantic_analysis_int_lit(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    } else if (nodeType = 1) {
+        semantic_analysis_arr_acc(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    } else if (nodeType = 4) {
+         semantic_analysis_bin_expr(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    } else if (nodeType = 8) {
+        semantic_analysis_if_stmt(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    } else if (nodeType = 21) {
+        semantic_analysis_while_stmt(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    } else if (nodeType = 20) {
+        semantic_analysis_var_expr(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    } else if (nodeType = 5) {
+        semantic_analysis_call_stmt(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    } else if (nodeType = 6) {
+        semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    } else if (nodeType = 7) {
+    } else {
+        astPointer := astPointer + nodeLength;
+    }
+}
+proc semantic_analysis(ref ast: DataArray, ref symbolTables: SymbolTables, ref symbolTableEntries: DataArray, ref entryPointer: int) {
+    var astPointer: int;
+    var keyBuf: HashMapKeyBuffer;
+    astPointer := 0;
+    semantic_analysis_rec(ast, astPointer, symbolTables, 0, symbolTableEntries, entryPointer, keyBuf);
+}
 proc main() {
     var input: DataArray;
     var inputLength: int;
@@ -1815,9 +2191,11 @@ proc main() {
     read_input(input, inputLength);
     lex(tokens, tokenPointer, input, inputLength);
     parse(ast, tokens);
+    parse_print_ast(ast);
     init_table_maps(symbolTables);
     symbolTableEntryPointer := 0;
     init_global_table(symbolTables[0], 0, symbolTableEntries, symbolTableEntryPointer);
     name_analysis(ast, symbolTables, symbolTableEntries, symbolTableEntryPointer);
-    print_tables(symbolTables, symbolTableEntries, 128);
+    semantic_analysis(ast, symbolTables, symbolTableEntries, symbolTableEntryPointer);
+    printc('s'); printc('u'); printc('c'); printc('c'); printc('e'); printc('s'); printc('s'); printc('\n');
 }
