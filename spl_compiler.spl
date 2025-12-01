@@ -110,6 +110,27 @@
 
 #define SKIP_NODE astPointer := astPointer + 1 + 1 + ast[astPointer + 1];
 
+#define REG_RDI 0
+#define REG_RSI 1
+#define REG_RDX 2
+#define REG_RCX 3
+#define REG_R8  4
+#define REG_R9  5
+#define REG_RBP 6
+#define REG_RSP 7
+
+#define WORD_SIZE 8
+
+#define CURR_PARAM_POSITION entries[procEntryIndex + 3 + currParamIndex + 1]
+#define CURR_PARAM_OFFSET entries[procEntryIndex + 3 + currParamIndex + 2]
+#define STACK_LAYOUT_LOCAL_VAR_AREA_SIZE entries[procEntryIndex + 3 + paramCount * 5]
+#define STACK_LAYOUT_ARG_AREA_SIZE entries[procEntryIndex + 3 + paramCount * 5 + 1]
+#define VAR_ENTRY_POSITION entries[varEntryIndex + 4]
+#define VAR_ENTRY_OFFSET entries[varEntryIndex + 5]
+#define VAR_ENTRY_TYPE_INDEX varEntryIndex + 2
+
+#define STACK_LAYOUT_OUT_AREA_SIZE entries[procEntryIndex + 3 + paramCount * 5 + 2]
+
 type DataArray = array[99999] of int;
 
 type HashMapKeyBuffer = array[HASHMAP_KEY_SIZE] of int;
@@ -1922,6 +1943,8 @@ proc name_analysis_var_decl(
     ENTRIES_W(0) // is not reference
     ENTRIES_W(SPL_TYPE_REF)
     ENTRIES_W(ast[typeIndex]);
+    ENTRIES_W(0) // Slot for variable position (register/stack offset)
+    ENTRIES_W(0) // Slot for variable position (register/stack offset)
 
     hashmap_cpy_key(ast, keyBuf, nameStart, nameLen);
     symbol_table_enter(CURRENT_TABLE, keyBuf, nameLen, entryStart);
@@ -1977,6 +2000,8 @@ proc name_analysis_param_decl(
     ENTRIES_W(isReference)
     ENTRIES_W(SPL_TYPE_REF)
     ENTRIES_W(ast[typeIndex]);
+    ENTRIES_W(0) // Slot for variable position (register/stack offset)
+    ENTRIES_W(0) // Slot for variable position (register/stack offset)
 
     hashmap_cpy_key(ast, keyBuf, nameStart, nameLen);
     symbol_table_enter(CURRENT_TABLE, keyBuf, nameLen, entryStart);
@@ -2019,9 +2044,11 @@ proc name_analysis_proc_decl(
         name_analysis_param_decl(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
 
         paramTypes[paramTypesPointer] := isReference;
-        paramTypes[paramTypesPointer + 1] := SPL_TYPE_REF;
-        paramTypes[paramTypesPointer + 2] := ast[typeIndex]; // Data type of parameter declaration
-        paramTypesPointer := paramTypesPointer + 3;
+        paramTypes[paramTypesPointer + 1] := 0; // Slot for parameter position (register/stack offset)
+        paramTypes[paramTypesPointer + 2] := 0; // Slot for parameter position (register/stack offset)
+        paramTypes[paramTypesPointer + 3] := SPL_TYPE_REF;
+        paramTypes[paramTypesPointer + 4] := ast[typeIndex]; // Data type of parameter declaration
+        paramTypesPointer := paramTypesPointer + 5;
         paramCounter := paramCounter + 1;
     }
     paramTypes[0] := paramCounter;
@@ -2038,6 +2065,10 @@ proc name_analysis_proc_decl(
 
     array_cpy(paramTypes, entries, 0, paramTypesPointer, entryPointer); // Copy parameter types
     entryPointer := entryPointer + paramTypesPointer;
+
+    ENTRIES_W(0) // Local Variable Area Size
+    ENTRIES_W(0) // Argument Area Size
+    ENTRIES_W(0) // Outgoing Area Size
 
     hashmap_cpy_key(ast, keyBuf, procNameStart, procNameLen);
     symbol_table_enter(GLOBAL_TABLE, keyBuf, procNameLen, entryStart);
@@ -2152,8 +2183,13 @@ proc init_global_table(ref table: HashMap, headless: int, ref entries: DataArray
     ENTRIES_W(-1) // Symbol table of procedure (-1 for builtin)
     ENTRIES_W(1) // One parameter
     ENTRIES_W(0) // Parameter is not reference
+    ENTRIES_W(REG_RDI) // Position of parameter 1
+    ENTRIES_W(0) // Offset is zero for parameters passed by register
     ENTRIES_W(SPL_TYPE_REF)
     ENTRIES_W(SPL_TYPE_INT_INDEX)
+    ENTRIES_W(0) // Local Variable Area Size
+    ENTRIES_W(0) // Argument Area Size
+    ENTRIES_W(0) // Outgoing Area Size
 
     // printc(i: int)
     keyBuf[0] := 'p';
@@ -2169,8 +2205,13 @@ proc init_global_table(ref table: HashMap, headless: int, ref entries: DataArray
     ENTRIES_W(-1) // Symbol table of procedure (-1 for builtin)
     ENTRIES_W(1) // One parameter
     ENTRIES_W(0) // Parameter is not reference
+    ENTRIES_W(REG_RDI) // Position of parameter 1
+    ENTRIES_W(0) // Offset is zero for parameters passed by register
     ENTRIES_W(SPL_TYPE_REF)
     ENTRIES_W(SPL_TYPE_INT_INDEX)
+    ENTRIES_W(0) // Local Variable Area Size
+    ENTRIES_W(0) // Argument Area Size
+    ENTRIES_W(0) // Outgoing Area Size
 
     // readi(ref i: int)
     keyBuf[0] := 'r';
@@ -2185,8 +2226,13 @@ proc init_global_table(ref table: HashMap, headless: int, ref entries: DataArray
     ENTRIES_W(-1) // Symbol table of procedure (-1 for builtin)
     ENTRIES_W(1) // One parameter
     ENTRIES_W(1) // Parameter IS reference
+    ENTRIES_W(REG_RDI) // Position of parameter 1
+    ENTRIES_W(0) // Offset is zero for parameters passed by register
     ENTRIES_W(SPL_TYPE_REF)
     ENTRIES_W(SPL_TYPE_INT_INDEX)
+    ENTRIES_W(0) // Local Variable Area Size
+    ENTRIES_W(0) // Argument Area Size
+    ENTRIES_W(0) // Outgoing Area Size
 
     // readc(ref i: int)
     keyBuf[0] := 'r';
@@ -2201,8 +2247,13 @@ proc init_global_table(ref table: HashMap, headless: int, ref entries: DataArray
     ENTRIES_W(-1) // Symbol table of procedure (-1 for builtin)
     ENTRIES_W(1) // One parameter
     ENTRIES_W(1) // Parameter IS reference
+    ENTRIES_W(REG_RDI) // Position of parameter 1
+    ENTRIES_W(0) // Offset is zero for parameters passed by register
     ENTRIES_W(SPL_TYPE_REF)
     ENTRIES_W(SPL_TYPE_INT_INDEX)
+    ENTRIES_W(0) // Local Variable Area Size
+    ENTRIES_W(0) // Argument Area Size
+    ENTRIES_W(0) // Outgoing Area Size
 
     // exit()
     keyBuf[0] := 'e';
@@ -2215,6 +2266,9 @@ proc init_global_table(ref table: HashMap, headless: int, ref entries: DataArray
     ENTRIES_W(SYM_TAB_ENTRY_PROC)
     ENTRIES_W(-1) // Symbol table of procedure (-1 for builtin)
     ENTRIES_W(0) // No parameters
+    ENTRIES_W(0) // Local Variable Area Size
+    ENTRIES_W(0) // Argument Area Size
+    ENTRIES_W(0) // Outgoing Area Size
 
     // time(ref i: int)
     keyBuf[0] := 't';
@@ -2228,8 +2282,13 @@ proc init_global_table(ref table: HashMap, headless: int, ref entries: DataArray
     ENTRIES_W(-1) // Symbol table of procedure (-1 for builtin)
     ENTRIES_W(1) // One parameter
     ENTRIES_W(1) // Parameter IS reference
+    ENTRIES_W(REG_RDI) // Position of parameter 1
+    ENTRIES_W(0) // Offset is zero for parameters passed by register
     ENTRIES_W(SPL_TYPE_REF)
     ENTRIES_W(SPL_TYPE_INT_INDEX)
+    ENTRIES_W(0) // Local Variable Area Size
+    ENTRIES_W(0) // Argument Area Size
+    ENTRIES_W(0) // Outgoing Area Size
 }
 
 proc print_type(ref entries: DataArray, ref entryPointer: int) {
@@ -2273,6 +2332,7 @@ proc print_procedure_type(ref entries: DataArray, ref entryPointer: int) {
     while (i < parameterCount) {
         isReference := entries[entryPointer];
         entryPointer := entryPointer + 1;
+        entryPointer := entryPointer + 2; // Skip parameter location (register/stack offset)
 
         if (isReference # 0) {
             printc('r'); printc('e'); printc('f'); printc(' ');
@@ -2329,6 +2389,7 @@ proc print_table(ref symbolTable: HashMap, ref entries: DataArray) {
                 printc('p'); printc('r'); printc('o'); printc('c'); printc(':'); printc(' '); printc('(');
                 print_procedure_type(entries, entryPointer);
                 printc(')');
+                entryPointer := entryPointer + 3; // Skip stack layout (local variable area size, argument area size, outgoing area size)
             } else if (entries[entryPointer] = SYM_TAB_ENTRY_VAR) {
                 entryPointer := entryPointer + 1;
                 isReference := entries[entryPointer];
@@ -2338,6 +2399,7 @@ proc print_table(ref symbolTable: HashMap, ref entries: DataArray) {
                     printc('r'); printc('e'); printc('f'); printc(' ');
                 }
                 print_type(entries, entryPointer);
+                entryPointer := entryPointer + 2; // Skip variable position (register/stack offset)
             } else {
                 exit(); // INTERNAL ERROR: Unexpected type
             }
@@ -2421,7 +2483,6 @@ proc compare_types(left: int, right: int, ref entries: DataArray) {
     resolve_type_ref(right, entries, rightResolved);
 
     if (leftResolved # rightResolved) {
-        printi(1);
         exit(); // SEMANTIC ERROR: Type mismatch
     }
 }
@@ -2729,7 +2790,7 @@ proc semantic_analysis_call_stmt(
 
     argsCounter := 0;
     while (astPointer < argsEndIndex) {
-        currParamIndex := paramListStart + argsCounter * 3;
+        currParamIndex := paramListStart + argsCounter * 5;
 
         if (entries[currParamIndex] # 0) { // If current param type is reference
             if (ast[astPointer] # NODE_VAR_EXPR) {
@@ -2740,7 +2801,7 @@ proc semantic_analysis_call_stmt(
         currArgTypeIndex := astPointer + 1 + 1;
 
         semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
-        compare_types(ast[currArgTypeIndex], currParamIndex + 1, entries);
+        compare_types(ast[currArgTypeIndex], currParamIndex + 3, entries);
 
         argsCounter := argsCounter + 1;
     }
@@ -2809,6 +2870,266 @@ proc semantic_analysis(ref ast: DataArray, ref symbolTables: SymbolTables, ref s
     semantic_analysis_rec(ast, astPointer, symbolTables, 0, symbolTableEntries, entryPointer, keyBuf);
 }
 
+proc calc_type_byte_size(typeIndex: int, ref entries: DataArray, ref r: int) {
+    var resolvedType: int;
+    var arrSubTypeSize: int;
+    var arrLen: int;
+
+    resolve_type_ref(typeIndex, entries, resolvedType);
+
+    if (entries[resolvedType] = SPL_TYPE_INT) {
+        r := r + WORD_SIZE;
+    } else if (entries[resolvedType] = SPL_TYPE_ARRAY) {
+        arrLen := entries[resolvedType + 1];
+        arrSubTypeSize := 0;
+        calc_type_byte_size(resolvedType + 2, entries, arrSubTypeSize);
+        r := r + arrSubTypeSize * arrLen;
+    } else {
+        exit(); // INTERNAL ERROR: Unknwon type
+    }
+}
+
+proc outgoing_area(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref r: int
+) {
+    var nodeType: int;
+    var nodeLength: int;
+    var t: int;
+    var argumentsSize: int;
+    var paramCount: int;
+    var procNameLen: int;
+    var procNameStart: int;
+    var procEntryFound: int;
+    var procEntryIndex: int;
+   
+    nodeType := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    nodeLength := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    if (nodeType = NODE_CALL_STMT) {
+        procNameLen := ast[astPointer];
+        astPointer := astPointer + 1;
+        procNameStart := astPointer;
+        astPointer := astPointer + procNameLen;
+
+        hashmap_cpy_key(ast, keyBuf, procNameStart, procNameLen);
+        symbol_table_lookup(symbolTables, 0, keyBuf, procNameLen, procEntryFound, procEntryIndex);
+
+        SKIP_NODE // Skip arg list
+
+        argumentsSize := 0;
+        paramCount := entries[procEntryIndex + 2];
+
+        // Note: Calculating actual byte size is not necessary since arrays can only be passed by reference.
+        // Therefore, each parameter must have a byte size of exactly WORD_SIZE since both ints and references are of size WORD_SIZE.
+        argumentsSize := paramCount * WORD_SIZE - 6 * WORD_SIZE;
+
+        if (argumentsSize > r) {
+            r := argumentsSize;
+        }
+    } else if (nodeType = NODE_COMP_STMT) {
+        outgoing_area(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, r); // body  
+    } else if (nodeType = NODE_IF_STMT) {
+        SKIP_NODE // Skip condition
+        outgoing_area(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, r); // then
+        outgoing_area(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, r); // else
+    } else if (nodeType = NODE_WHILE_STMT) {
+        SKIP_NODE // Skip Condition
+        outgoing_area(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, r);
+    } else if (nodeType = NODE_STMT_LIST) {
+        t := astPointer;
+        while (astPointer < t + nodeLength) {
+            outgoing_area(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, r);
+        }
+    } else {
+        astPointer := astPointer + nodeLength; // Skip unhandled nodes
+    }
+}
+
+proc var_alloc_param_decl_list(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    procEntryIndex: int
+) {
+    var paramCount: int;
+    var i: int;
+    var currParamIndex: int;
+    var varEntryIndex: int;
+    var varEntryFound: int;
+    var varNameStart: int;
+    var varNameLen: int;
+
+    paramCount := entries[procEntryIndex + 2];
+
+    astPointer := astPointer + 1 + 1; // Skip param decl list head and length
+
+    i := 0;
+    currParamIndex := 0;
+    while (i < paramCount) {
+        astPointer := astPointer + 4; // Skip head, length, datatype, isReference
+
+        varNameLen := ast[astPointer];
+        astPointer := astPointer + 1;
+        varNameStart := astPointer;
+        astPointer := astPointer + varNameLen;
+
+        hashmap_cpy_key(ast, keyBuf, varNameStart, varNameLen);
+        symbol_table_lookup(symbolTables, tablePointer, keyBuf, varNameLen, varEntryFound, varEntryIndex);
+
+        // Note: Calculating actual byte size is not necessary since arrays can only be passed by reference.
+        // Therefore, each parameter must have a byte size of exactly WORD_SIZE since both ints and references are of size WORD_SIZE.
+        if (i < 6) { // First six arguments are passed by register
+            CURR_PARAM_POSITION := i; // Maps to defined registers
+
+            VAR_ENTRY_POSITION := REG_RBP;
+            VAR_ENTRY_OFFSET := -STACK_LAYOUT_LOCAL_VAR_AREA_SIZE - WORD_SIZE;
+
+            STACK_LAYOUT_LOCAL_VAR_AREA_SIZE := STACK_LAYOUT_LOCAL_VAR_AREA_SIZE + WORD_SIZE;
+        } else {
+            CURR_PARAM_POSITION := REG_RSP;
+            CURR_PARAM_OFFSET := STACK_LAYOUT_ARG_AREA_SIZE;
+
+            VAR_ENTRY_POSITION := REG_RBP;
+            VAR_ENTRY_OFFSET := STACK_LAYOUT_ARG_AREA_SIZE + 16; // old frame pointer (8) + return address (8)
+
+            STACK_LAYOUT_ARG_AREA_SIZE := STACK_LAYOUT_ARG_AREA_SIZE + WORD_SIZE;
+        }
+
+        SKIP_NODE // Skip type expression
+
+        currParamIndex := currParamIndex + 5; // Skip isReference, position, ref, typeref
+        i := i + 1;
+    }
+}
+
+proc var_alloc_var_decl_list(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    procEntryIndex: int,
+    paramCount: int
+) {
+    var varNameLen: int;
+    var varNameStart: int;
+    var varEntryFound: int;
+    var varEntryIndex: int;
+    var typeSize: int;
+
+    astPointer := astPointer + 2; // Skip var decl list head and length
+
+    while (ast[astPointer] = NODE_VAR_DECL) {
+        astPointer := astPointer + 2; // Skip var decl head and length
+
+        varNameLen := ast[astPointer];
+        astPointer := astPointer + 1;
+        varNameStart := astPointer;
+        astPointer := astPointer + varNameLen;
+
+        SKIP_NODE // Skip type expression
+
+        hashmap_cpy_key(ast, keyBuf, varNameStart, varNameLen);
+        symbol_table_lookup(symbolTables, tablePointer, keyBuf, varNameLen, varEntryFound, varEntryIndex);
+
+        typeSize := 0;
+        calc_type_byte_size(VAR_ENTRY_TYPE_INDEX, entries, typeSize);
+
+        VAR_ENTRY_POSITION := REG_RBP;
+        VAR_ENTRY_OFFSET := -STACK_LAYOUT_LOCAL_VAR_AREA_SIZE - typeSize;
+        STACK_LAYOUT_LOCAL_VAR_AREA_SIZE := STACK_LAYOUT_LOCAL_VAR_AREA_SIZE + typeSize;
+    }
+}
+
+proc var_alloc_proc_decl(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var procNameStart: int;
+    var procNameLen: int;
+    var procEntryIndex: int;
+    var procEntryFound: int;
+    var localTablePointer: int;
+    var outgoingAreaSize: int;
+    var paramCount: int;
+
+    procNameLen := ast[astPointer];
+    astPointer := astPointer + 1;
+    procNameStart := astPointer;
+    astPointer := astPointer + procNameLen;
+
+    hashmap_cpy_key(ast, keyBuf, procNameStart, procNameLen);
+    symbol_table_lookup(symbolTables, 0, keyBuf, procNameLen, procEntryFound, procEntryIndex);
+
+    paramCount := entries[procEntryIndex + 2];
+
+    localTablePointer := entries[procEntryIndex + 1];
+
+    var_alloc_param_decl_list(ast, astPointer, symbolTables, localTablePointer, entries, keyBuf, procEntryIndex);
+    
+    var_alloc_var_decl_list(ast, astPointer, symbolTables, localTablePointer, entries, keyBuf, procEntryIndex, paramCount);
+    
+    outgoingAreaSize := 0;
+    outgoing_area(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, outgoingAreaSize);
+    STACK_LAYOUT_OUT_AREA_SIZE := outgoingAreaSize;
+}
+
+proc var_alloc_rec(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var nodeType: int;
+    var nodeLength: int;
+    var t: int;
+   
+    nodeType := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    nodeLength := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    if (nodeType = NODE_PROC_DECL) {
+        var_alloc_proc_decl(ast, astPointer, symbolTables, tablePointer, entries, keyBuf);
+    } else if (nodeType = NODE_STMT_LIST) {
+        t := astPointer;
+        while (astPointer < t + nodeLength) {
+            var_alloc_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf);
+        }
+    } else {
+        astPointer := astPointer + nodeLength; // Skip unhandled nodes
+    }
+}
+
+proc var_alloc(ref ast: DataArray, ref symbolTables: SymbolTables, ref symbolTableEntries: DataArray) {
+    var astPointer: int;
+    var keyBuf: HashMapKeyBuffer;
+
+    astPointer := 0;
+
+    var_alloc_rec(ast, astPointer, symbolTables, 0, symbolTableEntries, keyBuf);
+}
+
 proc main() {
     var input: DataArray;
     var inputLength: int;
@@ -2826,7 +3147,7 @@ proc main() {
     //lex_print_tokens(tokens, tokenPointer);
     parse(ast, tokens);
 
-    parse_print_ast(ast);
+    //parse_print_ast(ast);
 
     init_table_maps(symbolTables);
 
@@ -2840,6 +3161,8 @@ proc main() {
     //print_tables(symbolTables, symbolTableEntries, 2);
 
     semantic_analysis(ast, symbolTables, symbolTableEntries, symbolTableEntryPointer);
+
+    var_alloc(ast, symbolTables, symbolTableEntries);
 
     printc('s'); printc('u'); printc('c'); printc('c'); printc('e'); printc('s'); printc('s'); printc('\n');
 }

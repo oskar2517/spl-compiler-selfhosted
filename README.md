@@ -8,5 +8,5 @@ Compiler for SPL (Simple Programming Language) written in SPL itself.
 - [x] Parser
 - [x] Name Analysis
 - [X] Semantic Analysis
-- [ ] Allocation
+- [X] Allocation
 - [ ] Code Generation

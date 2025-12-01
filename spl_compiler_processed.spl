@@ -1467,6 +1467,8 @@ proc name_analysis_var_decl(
     entries[entryPointer] := 0; entryPointer := entryPointer + 1;
     entries[entryPointer] := 3; entryPointer := entryPointer + 1;
     entries[entryPointer] := ast[typeIndex]; entryPointer := entryPointer + 1;;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
     hashmap_cpy_key(ast, keyBuf, nameStart, nameLen);
     symbol_table_enter(symbolTables[tablePointer], keyBuf, nameLen, entryStart);
 }
@@ -1510,6 +1512,8 @@ proc name_analysis_param_decl(
     entries[entryPointer] := isReference; entryPointer := entryPointer + 1;
     entries[entryPointer] := 3; entryPointer := entryPointer + 1;
     entries[entryPointer] := ast[typeIndex]; entryPointer := entryPointer + 1;;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
     hashmap_cpy_key(ast, keyBuf, nameStart, nameLen);
     symbol_table_enter(symbolTables[tablePointer], keyBuf, nameLen, entryStart);
 }
@@ -1544,9 +1548,11 @@ proc name_analysis_proc_decl(
         isReference := ast[astPointer + 1];
         name_analysis_param_decl(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
         paramTypes[paramTypesPointer] := isReference;
-        paramTypes[paramTypesPointer + 1] := 3;
-        paramTypes[paramTypesPointer + 2] := ast[typeIndex];
-        paramTypesPointer := paramTypesPointer + 3;
+        paramTypes[paramTypesPointer + 1] := 0;
+        paramTypes[paramTypesPointer + 2] := 0;
+        paramTypes[paramTypesPointer + 3] := 3;
+        paramTypes[paramTypesPointer + 4] := ast[typeIndex];
+        paramTypesPointer := paramTypesPointer + 5;
         paramCounter := paramCounter + 1;
     }
     paramTypes[0] := paramCounter;
@@ -1560,6 +1566,9 @@ proc name_analysis_proc_decl(
     entries[entryPointer] := tablePointer; entryPointer := entryPointer + 1;
     array_cpy(paramTypes, entries, 0, paramTypesPointer, entryPointer);
     entryPointer := entryPointer + paramTypesPointer;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
     hashmap_cpy_key(ast, keyBuf, procNameStart, procNameLen);
     symbol_table_enter(symbolTables[0], keyBuf, procNameLen, entryStart);
     astPointer := astPointer + 1 + 1 + ast[astPointer + 1];
@@ -1646,8 +1655,13 @@ proc init_global_table(ref table: HashMap, headless: int, ref entries: DataArray
     entries[entryPointer] := -1; entryPointer := entryPointer + 1;
     entries[entryPointer] := 1; entryPointer := entryPointer + 1;
     entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
     entries[entryPointer] := 3; entryPointer := entryPointer + 1;
     entries[entryPointer] := 2; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
     keyBuf[0] := 'p';
     keyBuf[1] := 'r';
     keyBuf[2] := 'i';
@@ -1659,8 +1673,13 @@ proc init_global_table(ref table: HashMap, headless: int, ref entries: DataArray
     entries[entryPointer] := -1; entryPointer := entryPointer + 1;
     entries[entryPointer] := 1; entryPointer := entryPointer + 1;
     entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
     entries[entryPointer] := 3; entryPointer := entryPointer + 1;
     entries[entryPointer] := 2; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
     keyBuf[0] := 'r';
     keyBuf[1] := 'e';
     keyBuf[2] := 'a';
@@ -1671,8 +1690,13 @@ proc init_global_table(ref table: HashMap, headless: int, ref entries: DataArray
     entries[entryPointer] := -1; entryPointer := entryPointer + 1;
     entries[entryPointer] := 1; entryPointer := entryPointer + 1;
     entries[entryPointer] := 1; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
     entries[entryPointer] := 3; entryPointer := entryPointer + 1;
     entries[entryPointer] := 2; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
     keyBuf[0] := 'r';
     keyBuf[1] := 'e';
     keyBuf[2] := 'a';
@@ -1683,8 +1707,13 @@ proc init_global_table(ref table: HashMap, headless: int, ref entries: DataArray
     entries[entryPointer] := -1; entryPointer := entryPointer + 1;
     entries[entryPointer] := 1; entryPointer := entryPointer + 1;
     entries[entryPointer] := 1; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
     entries[entryPointer] := 3; entryPointer := entryPointer + 1;
     entries[entryPointer] := 2; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
     keyBuf[0] := 'e';
     keyBuf[1] := 'x';
     keyBuf[2] := 'i';
@@ -1692,6 +1721,9 @@ proc init_global_table(ref table: HashMap, headless: int, ref entries: DataArray
     hashmap_put_str(table, keyBuf, 4, entryPointer);
     entries[entryPointer] := 0; entryPointer := entryPointer + 1;
     entries[entryPointer] := -1; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
     entries[entryPointer] := 0; entryPointer := entryPointer + 1;
     keyBuf[0] := 't';
     keyBuf[1] := 'i';
@@ -1702,8 +1734,13 @@ proc init_global_table(ref table: HashMap, headless: int, ref entries: DataArray
     entries[entryPointer] := -1; entryPointer := entryPointer + 1;
     entries[entryPointer] := 1; entryPointer := entryPointer + 1;
     entries[entryPointer] := 1; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
     entries[entryPointer] := 3; entryPointer := entryPointer + 1;
     entries[entryPointer] := 2; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
+    entries[entryPointer] := 0; entryPointer := entryPointer + 1;
 }
 proc print_type(ref entries: DataArray, ref entryPointer: int) {
     var head: int;
@@ -1741,6 +1778,7 @@ proc print_procedure_type(ref entries: DataArray, ref entryPointer: int) {
     while (i < parameterCount) {
         isReference := entries[entryPointer];
         entryPointer := entryPointer + 1;
+        entryPointer := entryPointer + 2;
         if (isReference # 0) {
             printc('r'); printc('e'); printc('f'); printc(' ');
         }
@@ -1786,6 +1824,7 @@ proc print_table(ref symbolTable: HashMap, ref entries: DataArray) {
                 printc('p'); printc('r'); printc('o'); printc('c'); printc(':'); printc(' '); printc('(');
                 print_procedure_type(entries, entryPointer);
                 printc(')');
+                entryPointer := entryPointer + 3;
             } else if (entries[entryPointer] = 2) {
                 entryPointer := entryPointer + 1;
                 isReference := entries[entryPointer];
@@ -1795,6 +1834,7 @@ proc print_table(ref symbolTable: HashMap, ref entries: DataArray) {
                     printc('r'); printc('e'); printc('f'); printc(' ');
                 }
                 print_type(entries, entryPointer);
+                entryPointer := entryPointer + 2;
             } else {
                 exit();
             }
@@ -1860,7 +1900,6 @@ proc compare_types(left: int, right: int, ref entries: DataArray) {
     resolve_type_ref(left, entries, leftResolved);
     resolve_type_ref(right, entries, rightResolved);
     if (leftResolved # rightResolved) {
-        printi(1);
         exit();
     }
 }
@@ -2111,7 +2150,7 @@ proc semantic_analysis_call_stmt(
     }
     argsCounter := 0;
     while (astPointer < argsEndIndex) {
-        currParamIndex := paramListStart + argsCounter * 3;
+        currParamIndex := paramListStart + argsCounter * 5;
         if (entries[currParamIndex] # 0) {
             if (ast[astPointer] # 20) {
                 exit();
@@ -2119,7 +2158,7 @@ proc semantic_analysis_call_stmt(
         }
         currArgTypeIndex := astPointer + 1 + 1;
         semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
-        compare_types(ast[currArgTypeIndex], currParamIndex + 1, entries);
+        compare_types(ast[currArgTypeIndex], currParamIndex + 3, entries);
         argsCounter := argsCounter + 1;
     }
 }
@@ -2179,6 +2218,214 @@ proc semantic_analysis(ref ast: DataArray, ref symbolTables: SymbolTables, ref s
     astPointer := 0;
     semantic_analysis_rec(ast, astPointer, symbolTables, 0, symbolTableEntries, entryPointer, keyBuf);
 }
+proc calc_type_byte_size(typeIndex: int, ref entries: DataArray, ref r: int) {
+    var resolvedType: int;
+    var arrSubTypeSize: int;
+    var arrLen: int;
+    resolve_type_ref(typeIndex, entries, resolvedType);
+    if (entries[resolvedType] = 1) {
+        r := r + 8;
+    } else if (entries[resolvedType] = 0) {
+        arrLen := entries[resolvedType + 1];
+        arrSubTypeSize := 0;
+        calc_type_byte_size(resolvedType + 2, entries, arrSubTypeSize);
+        r := r + arrSubTypeSize * arrLen;
+    } else {
+        exit();
+    }
+}
+proc outgoing_area(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref r: int
+) {
+    var nodeType: int;
+    var nodeLength: int;
+    var t: int;
+    var argumentsSize: int;
+    var paramCount: int;
+    var procNameLen: int;
+    var procNameStart: int;
+    var procEntryFound: int;
+    var procEntryIndex: int;
+    nodeType := ast[astPointer];
+    astPointer := astPointer + 1;
+    nodeLength := ast[astPointer];
+    astPointer := astPointer + 1;
+    if (nodeType = 5) {
+        procNameLen := ast[astPointer];
+        astPointer := astPointer + 1;
+        procNameStart := astPointer;
+        astPointer := astPointer + procNameLen;
+        hashmap_cpy_key(ast, keyBuf, procNameStart, procNameLen);
+        symbol_table_lookup(symbolTables, 0, keyBuf, procNameLen, procEntryFound, procEntryIndex);
+        astPointer := astPointer + 1 + 1 + ast[astPointer + 1];
+        argumentsSize := 0;
+        paramCount := entries[procEntryIndex + 2];
+        argumentsSize := paramCount * 8 - 6 * 8;
+        if (argumentsSize > r) {
+            r := argumentsSize;
+        }
+    } else if (nodeType = 6) {
+        outgoing_area(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, r);
+    } else if (nodeType = 8) {
+        astPointer := astPointer + 1 + 1 + ast[astPointer + 1];
+        outgoing_area(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, r);
+        outgoing_area(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, r);
+    } else if (nodeType = 21) {
+        astPointer := astPointer + 1 + 1 + ast[astPointer + 1];
+        outgoing_area(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, r);
+    } else if (nodeType = 15) {
+        t := astPointer;
+        while (astPointer < t + nodeLength) {
+            outgoing_area(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, r);
+        }
+    } else {
+        astPointer := astPointer + nodeLength;
+    }
+}
+proc var_alloc_param_decl_list(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    procEntryIndex: int
+) {
+    var paramCount: int;
+    var i: int;
+    var currParamIndex: int;
+    var varEntryIndex: int;
+    var varEntryFound: int;
+    var varNameStart: int;
+    var varNameLen: int;
+    paramCount := entries[procEntryIndex + 2];
+    astPointer := astPointer + 1 + 1;
+    i := 0;
+    currParamIndex := 0;
+    while (i < paramCount) {
+        astPointer := astPointer + 4;
+        varNameLen := ast[astPointer];
+        astPointer := astPointer + 1;
+        varNameStart := astPointer;
+        astPointer := astPointer + varNameLen;
+        hashmap_cpy_key(ast, keyBuf, varNameStart, varNameLen);
+        symbol_table_lookup(symbolTables, tablePointer, keyBuf, varNameLen, varEntryFound, varEntryIndex);
+        if (i < 6) {
+            entries[procEntryIndex + 3 + currParamIndex + 1] := i;
+            entries[varEntryIndex + 4] := 6;
+            entries[varEntryIndex + 5] := -entries[procEntryIndex + 3 + paramCount * 5] - 8;
+            entries[procEntryIndex + 3 + paramCount * 5] := entries[procEntryIndex + 3 + paramCount * 5] + 8;
+        } else {
+            entries[procEntryIndex + 3 + currParamIndex + 1] := 7;
+            entries[procEntryIndex + 3 + currParamIndex + 2] := entries[procEntryIndex + 3 + paramCount * 5 + 1];
+            entries[varEntryIndex + 4] := 6;
+            entries[varEntryIndex + 5] := entries[procEntryIndex + 3 + paramCount * 5 + 1] + 16;
+            entries[procEntryIndex + 3 + paramCount * 5 + 1] := entries[procEntryIndex + 3 + paramCount * 5 + 1] + 8;
+        }
+        astPointer := astPointer + 1 + 1 + ast[astPointer + 1];
+        currParamIndex := currParamIndex + 5;
+        i := i + 1;
+    }
+}
+proc var_alloc_var_decl_list(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    procEntryIndex: int,
+    paramCount: int
+) {
+    var varNameLen: int;
+    var varNameStart: int;
+    var varEntryFound: int;
+    var varEntryIndex: int;
+    var typeSize: int;
+    astPointer := astPointer + 2;
+    while (ast[astPointer] = 18) {
+        astPointer := astPointer + 2;
+        varNameLen := ast[astPointer];
+        astPointer := astPointer + 1;
+        varNameStart := astPointer;
+        astPointer := astPointer + varNameLen;
+        astPointer := astPointer + 1 + 1 + ast[astPointer + 1];
+        hashmap_cpy_key(ast, keyBuf, varNameStart, varNameLen);
+        symbol_table_lookup(symbolTables, tablePointer, keyBuf, varNameLen, varEntryFound, varEntryIndex);
+        typeSize := 0;
+        calc_type_byte_size(varEntryIndex + 2, entries, typeSize);
+        entries[varEntryIndex + 4] := 6;
+        entries[varEntryIndex + 5] := -entries[procEntryIndex + 3 + paramCount * 5] - typeSize;
+        entries[procEntryIndex + 3 + paramCount * 5] := entries[procEntryIndex + 3 + paramCount * 5] + typeSize;
+    }
+}
+proc var_alloc_proc_decl(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var procNameStart: int;
+    var procNameLen: int;
+    var procEntryIndex: int;
+    var procEntryFound: int;
+    var localTablePointer: int;
+    var outgoingAreaSize: int;
+    var paramCount: int;
+    procNameLen := ast[astPointer];
+    astPointer := astPointer + 1;
+    procNameStart := astPointer;
+    astPointer := astPointer + procNameLen;
+    hashmap_cpy_key(ast, keyBuf, procNameStart, procNameLen);
+    symbol_table_lookup(symbolTables, 0, keyBuf, procNameLen, procEntryFound, procEntryIndex);
+    paramCount := entries[procEntryIndex + 2];
+    localTablePointer := entries[procEntryIndex + 1];
+    var_alloc_param_decl_list(ast, astPointer, symbolTables, localTablePointer, entries, keyBuf, procEntryIndex);
+    var_alloc_var_decl_list(ast, astPointer, symbolTables, localTablePointer, entries, keyBuf, procEntryIndex, paramCount);
+    outgoingAreaSize := 0;
+    outgoing_area(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, outgoingAreaSize);
+    entries[procEntryIndex + 3 + paramCount * 5 + 2] := outgoingAreaSize;
+}
+proc var_alloc_rec(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var nodeType: int;
+    var nodeLength: int;
+    var t: int;
+    nodeType := ast[astPointer];
+    astPointer := astPointer + 1;
+    nodeLength := ast[astPointer];
+    astPointer := astPointer + 1;
+    if (nodeType = 14) {
+        var_alloc_proc_decl(ast, astPointer, symbolTables, tablePointer, entries, keyBuf);
+    } else if (nodeType = 15) {
+        t := astPointer;
+        while (astPointer < t + nodeLength) {
+            var_alloc_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf);
+        }
+    } else {
+        astPointer := astPointer + nodeLength;
+    }
+}
+proc var_alloc(ref ast: DataArray, ref symbolTables: SymbolTables, ref symbolTableEntries: DataArray) {
+    var astPointer: int;
+    var keyBuf: HashMapKeyBuffer;
+    astPointer := 0;
+    var_alloc_rec(ast, astPointer, symbolTables, 0, symbolTableEntries, keyBuf);
+}
 proc main() {
     var input: DataArray;
     var inputLength: int;
@@ -2191,11 +2438,11 @@ proc main() {
     read_input(input, inputLength);
     lex(tokens, tokenPointer, input, inputLength);
     parse(ast, tokens);
-    parse_print_ast(ast);
     init_table_maps(symbolTables);
     symbolTableEntryPointer := 0;
     init_global_table(symbolTables[0], 0, symbolTableEntries, symbolTableEntryPointer);
     name_analysis(ast, symbolTables, symbolTableEntries, symbolTableEntryPointer);
     semantic_analysis(ast, symbolTables, symbolTableEntries, symbolTableEntryPointer);
+    var_alloc(ast, symbolTables, symbolTableEntries);
     printc('s'); printc('u'); printc('c'); printc('c'); printc('e'); printc('s'); printc('s'); printc('\n');
 }
