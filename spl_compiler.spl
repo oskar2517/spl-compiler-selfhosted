@@ -3358,6 +3358,7 @@ proc codegen_proc_decl(
     INDENT POP(R13)
     INDENT POP(R12)
     INDENT POP(RBX)
+    PC('\n')
     INDENT PC(';') PC(' ') PC('A') PC('l') PC('i') PC('g') PC('n') PC(' ') PC('s') PC('t') PC('a') PC('c') PC('k') PC('\n')
     INDENT ADD(RSP, PI(8))
 
@@ -3731,11 +3732,11 @@ proc codegen_call_stmt(
             codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
         }
 
-        if (CURR_PARAM_POSITION # REG_RBP) {
-            INDENT MOV(print_register(CURR_PARAM_POSITION);, print_register(currReg);)
-        } else {
+        if (CURR_PARAM_POSITION = REG_RSP) {
             INDENT MOV(BRACK(print_register(CURR_PARAM_POSITION); PC('+') PI(CURR_PARAM_OFFSET)), print_register(currReg);)
-        }
+        } else {
+            INDENT MOV(print_register(CURR_PARAM_POSITION);, print_register(currReg);)
+        } 
 
         PREV_REGISTER
 
@@ -3820,12 +3821,12 @@ proc codegen(ref ast: DataArray, ref symbolTables: SymbolTables, ref symbolTable
     INDENT PC('e') PC('x') PC('t') PC('e') PC('r') PC('n') PC(' ') PC('p') PC('r') PC('i') PC('n') PC('t') PC('f') PC('\n')
     INDENT PC('e') PC('x') PC('t') PC('e') PC('r') PC('n') PC(' ') PC('e') PC('x') PC('i') PC('t') PC('\n')
     INDENT PC('e') PC('x') PC('t') PC('e') PC('r') PC('n') PC(' ') PC('_') PC('_') PC('i') PC('n') PC('i') PC('t') PC('_') PC('t') PC('i') PC('m') PC('e') PC('\n')
-    INDENT PC('e') PC('x') PC('t') PC('e') PC('r') PC('n') PC(' ') PC('_') PC('t') PC('i') PC('m') PC('e') PC('\n')
-    INDENT PC('e') PC('x') PC('t') PC('e') PC('r') PC('n') PC(' ') PC('_') PC('p') PC('r') PC('i') PC('n') PC('t') PC('i') PC('\n')
-    INDENT PC('e') PC('x') PC('t') PC('e') PC('r') PC('n') PC(' ') PC('_') PC('p') PC('r') PC('i') PC('n') PC('t') PC('c') PC('\n')
     INDENT PC('e') PC('x') PC('t') PC('e') PC('r') PC('n') PC(' ') PC('_') PC('e') PC('x') PC('i') PC('t') PC('\n')
+    INDENT PC('e') PC('x') PC('t') PC('e') PC('r') PC('n') PC(' ') PC('_') PC('p') PC('r') PC('i') PC('n') PC('t') PC('c') PC('\n')
+    INDENT PC('e') PC('x') PC('t') PC('e') PC('r') PC('n') PC(' ') PC('_') PC('p') PC('r') PC('i') PC('n') PC('t') PC('i') PC('\n')
     INDENT PC('e') PC('x') PC('t') PC('e') PC('r') PC('n') PC(' ') PC('_') PC('r') PC('e') PC('a') PC('d') PC('i') PC('\n')
     INDENT PC('e') PC('x') PC('t') PC('e') PC('r') PC('n') PC(' ') PC('_') PC('r') PC('e') PC('a') PC('d') PC('c') PC('\n')
+    INDENT PC('e') PC('x') PC('t') PC('e') PC('r') PC('n') PC(' ') PC('_') PC('t') PC('i') PC('m') PC('e') PC('\n')
     PC('\n')
 
     PC('_') PC('_') PC('a') PC('r') PC('r') PC('a') PC('y') PC('A') PC('c') PC('c') PC('e') PC('s') PC('s') PC('O') PC('u') PC('t') PC('O') PC('f') PC('B') PC('o') PC('u') PC('n') PC('d') PC('s') PC(':') PC('\n')
@@ -3855,7 +3856,6 @@ proc codegen(ref ast: DataArray, ref symbolTables: SymbolTables, ref symbolTable
     INDENT PC('a') PC('r') PC('r') PC('a') PC('y') PC('_') PC('o') PC('o') PC('b') PC('_') PC('e') PC('r') PC('r') PC('o') PC('r') PC(':') PC(' ') PC('d') PC('b') PC(' ') PC('"') PC('e') PC('r') PC('r') PC('o') PC('r') 
             PC(':') PC(' ') PC('a') PC('r') PC('r') PC('a') PC('y') PC(' ') PC('a') PC('c') PC('c') PC('e') PC('s') PC('s') PC(' ') PC('o') PC('u') PC('t') PC(' ') PC('o') PC('f') PC(' ') PC('b') PC('o') PC('u') PC('n') 
             PC('d') PC('s') PC('"') PC(',') PC('1') PC('0') PC(',') PC('0') PC('\n')
-    PC('\n');
 }
 
 proc main() {

@@ -2566,6 +2566,7 @@ proc codegen_proc_decl(
     printc(' '); printc(' '); printc(' '); printc(' '); printc('p'); printc('o'); printc('p'); printc(' '); printc('r'); printc('1'); printc('3'); printc('\n');
     printc(' '); printc(' '); printc(' '); printc(' '); printc('p'); printc('o'); printc('p'); printc(' '); printc('r'); printc('1'); printc('2'); printc('\n');
     printc(' '); printc(' '); printc(' '); printc(' '); printc('p'); printc('o'); printc('p'); printc(' '); printc('r'); printc('b'); printc('x'); printc('\n');
+    printc('\n');
     printc(' '); printc(' '); printc(' '); printc(' '); printc(';'); printc(' '); printc('A'); printc('l'); printc('i'); printc('g'); printc('n'); printc(' '); printc('s'); printc('t'); printc('a'); printc('c'); printc('k'); printc('\n');
     printc(' '); printc(' '); printc(' '); printc(' '); printc('a'); printc('d'); printc('d'); printc(' '); printc('r'); printc('s'); printc('p'); printc(','); printc(' '); printi(8); printc('\n');
     printc('\n');
@@ -2867,10 +2868,10 @@ proc codegen_call_stmt(
         } else {
             codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
         }
-        if (entries[procEntryIndex + 3 + currParamIndex + 1] # 6) {
-            printc(' '); printc(' '); printc(' '); printc(' '); printc('m'); printc('o'); printc('v'); printc(' '); print_register(entries[procEntryIndex + 3 + currParamIndex + 1]); printc(','); printc(' '); print_register(currReg); printc('\n');
-        } else {
+        if (entries[procEntryIndex + 3 + currParamIndex + 1] = 7) {
             printc(' '); printc(' '); printc(' '); printc(' '); printc('m'); printc('o'); printc('v'); printc(' '); printc('['); print_register(entries[procEntryIndex + 3 + currParamIndex + 1]); printc('+'); printi(entries[procEntryIndex + 3 + currParamIndex + 2]); printc(']'); printc(','); printc(' '); print_register(currReg); printc('\n');
+        } else {
+            printc(' '); printc(' '); printc(' '); printc(' '); printc('m'); printc('o'); printc('v'); printc(' '); print_register(entries[procEntryIndex + 3 + currParamIndex + 1]); printc(','); printc(' '); print_register(currReg); printc('\n');
         }
         currReg := currReg - 1;
         astPointer := origAstPointer;
@@ -2944,12 +2945,12 @@ proc codegen(ref ast: DataArray, ref symbolTables: SymbolTables, ref symbolTable
     printc(' '); printc(' '); printc(' '); printc(' '); printc('e'); printc('x'); printc('t'); printc('e'); printc('r'); printc('n'); printc(' '); printc('p'); printc('r'); printc('i'); printc('n'); printc('t'); printc('f'); printc('\n');
     printc(' '); printc(' '); printc(' '); printc(' '); printc('e'); printc('x'); printc('t'); printc('e'); printc('r'); printc('n'); printc(' '); printc('e'); printc('x'); printc('i'); printc('t'); printc('\n');
     printc(' '); printc(' '); printc(' '); printc(' '); printc('e'); printc('x'); printc('t'); printc('e'); printc('r'); printc('n'); printc(' '); printc('_'); printc('_'); printc('i'); printc('n'); printc('i'); printc('t'); printc('_'); printc('t'); printc('i'); printc('m'); printc('e'); printc('\n');
-    printc(' '); printc(' '); printc(' '); printc(' '); printc('e'); printc('x'); printc('t'); printc('e'); printc('r'); printc('n'); printc(' '); printc('_'); printc('t'); printc('i'); printc('m'); printc('e'); printc('\n');
-    printc(' '); printc(' '); printc(' '); printc(' '); printc('e'); printc('x'); printc('t'); printc('e'); printc('r'); printc('n'); printc(' '); printc('_'); printc('p'); printc('r'); printc('i'); printc('n'); printc('t'); printc('i'); printc('\n');
-    printc(' '); printc(' '); printc(' '); printc(' '); printc('e'); printc('x'); printc('t'); printc('e'); printc('r'); printc('n'); printc(' '); printc('_'); printc('p'); printc('r'); printc('i'); printc('n'); printc('t'); printc('c'); printc('\n');
     printc(' '); printc(' '); printc(' '); printc(' '); printc('e'); printc('x'); printc('t'); printc('e'); printc('r'); printc('n'); printc(' '); printc('_'); printc('e'); printc('x'); printc('i'); printc('t'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('e'); printc('x'); printc('t'); printc('e'); printc('r'); printc('n'); printc(' '); printc('_'); printc('p'); printc('r'); printc('i'); printc('n'); printc('t'); printc('c'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('e'); printc('x'); printc('t'); printc('e'); printc('r'); printc('n'); printc(' '); printc('_'); printc('p'); printc('r'); printc('i'); printc('n'); printc('t'); printc('i'); printc('\n');
     printc(' '); printc(' '); printc(' '); printc(' '); printc('e'); printc('x'); printc('t'); printc('e'); printc('r'); printc('n'); printc(' '); printc('_'); printc('r'); printc('e'); printc('a'); printc('d'); printc('i'); printc('\n');
     printc(' '); printc(' '); printc(' '); printc(' '); printc('e'); printc('x'); printc('t'); printc('e'); printc('r'); printc('n'); printc(' '); printc('_'); printc('r'); printc('e'); printc('a'); printc('d'); printc('c'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('e'); printc('x'); printc('t'); printc('e'); printc('r'); printc('n'); printc(' '); printc('_'); printc('t'); printc('i'); printc('m'); printc('e'); printc('\n');
     printc('\n');
     printc('_'); printc('_'); printc('a'); printc('r'); printc('r'); printc('a'); printc('y'); printc('A'); printc('c'); printc('c'); printc('e'); printc('s'); printc('s'); printc('O'); printc('u'); printc('t'); printc('O'); printc('f'); printc('B'); printc('o'); printc('u'); printc('n'); printc('d'); printc('s'); printc(':'); printc('\n');
     printc(' '); printc(' '); printc(' '); printc(' '); printc('x'); printc('o'); printc('r'); printc(' '); printc('r'); printc('a'); printc('x'); printc(','); printc(' '); printc('r'); printc('a'); printc('x'); printc('\n');
@@ -2975,7 +2976,6 @@ proc codegen(ref ast: DataArray, ref symbolTables: SymbolTables, ref symbolTable
     printc(' '); printc(' '); printc(' '); printc(' '); printc('a'); printc('r'); printc('r'); printc('a'); printc('y'); printc('_'); printc('o'); printc('o'); printc('b'); printc('_'); printc('e'); printc('r'); printc('r'); printc('o'); printc('r'); printc(':'); printc(' '); printc('d'); printc('b'); printc(' '); printc('"'); printc('e'); printc('r'); printc('r'); printc('o'); printc('r');
             printc(':'); printc(' '); printc('a'); printc('r'); printc('r'); printc('a'); printc('y'); printc(' '); printc('a'); printc('c'); printc('c'); printc('e'); printc('s'); printc('s'); printc(' '); printc('o'); printc('u'); printc('t'); printc(' '); printc('o'); printc('f'); printc(' '); printc('b'); printc('o'); printc('u'); printc('n');
             printc('d'); printc('s'); printc('"'); printc(','); printc('1'); printc('0'); printc(','); printc('0'); printc('\n');
-    printc('\n');;
 }
 proc main() {
     var input: DataArray;
@@ -2997,3 +2997,4 @@ proc main() {
     var_alloc(ast, symbolTables, symbolTableEntries);
     codegen(ast, symbolTables, symbolTableEntries);
 }
+@
