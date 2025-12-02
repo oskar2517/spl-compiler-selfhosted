@@ -1,4 +1,4 @@
-type DataArray = array[99999] of int;
+type DataArray = array[150000] of int;
 type HashMapKeyBuffer = array[64] of int;
 type HashMapComponent = array[2048] of int;
 type HashMap = array[5] of HashMapComponent;
@@ -172,7 +172,7 @@ proc read_input(ref input: DataArray, ref length: int) {
     readc(char);
     input[0] := char;
     index := 1;
-    while (char # 0x2E) {
+    while (char # 0x40) {
         readc(char);
         input[index] := char;
         index := index + 1;
@@ -2325,7 +2325,7 @@ proc var_alloc_param_decl_list(
             entries[procEntryIndex + 3 + currParamIndex + 1] := 7;
             entries[procEntryIndex + 3 + currParamIndex + 2] := entries[procEntryIndex + 3 + paramCount * 5 + 1];
             entries[varEntryIndex + 4] := 6;
-            entries[varEntryIndex + 5] := entries[procEntryIndex + 3 + paramCount * 5 + 1] + 16;
+            entries[varEntryIndex + 5] := entries[procEntryIndex + 3 + paramCount * 5 + 1] + 2 * 8;
             entries[procEntryIndex + 3 + paramCount * 5 + 1] := entries[procEntryIndex + 3 + paramCount * 5 + 1] + 8;
         }
         astPointer := astPointer + 1 + 1 + ast[astPointer + 1];
@@ -2380,6 +2380,7 @@ proc var_alloc_proc_decl(
     var localTablePointer: int;
     var outgoingAreaSize: int;
     var paramCount: int;
+    var origAstPointer: int;
     procNameLen := ast[astPointer];
     astPointer := astPointer + 1;
     procNameStart := astPointer;
@@ -2388,8 +2389,12 @@ proc var_alloc_proc_decl(
     symbol_table_lookup(symbolTables, 0, keyBuf, procNameLen, procEntryFound, procEntryIndex);
     paramCount := entries[procEntryIndex + 2];
     localTablePointer := entries[procEntryIndex + 1];
-    var_alloc_param_decl_list(ast, astPointer, symbolTables, localTablePointer, entries, keyBuf, procEntryIndex);
+    origAstPointer := astPointer;
+    astPointer := astPointer + 1 + 1 + ast[astPointer + 1];
     var_alloc_var_decl_list(ast, astPointer, symbolTables, localTablePointer, entries, keyBuf, procEntryIndex, paramCount);
+    astPointer := origAstPointer;
+    var_alloc_param_decl_list(ast, astPointer, symbolTables, localTablePointer, entries, keyBuf, procEntryIndex);
+    astPointer := astPointer + 1 + 1 + ast[astPointer + 1];
     outgoingAreaSize := 0;
     outgoing_area(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, outgoingAreaSize);
     entries[procEntryIndex + 3 + paramCount * 5 + 2] := outgoingAreaSize;
@@ -2426,6 +2431,552 @@ proc var_alloc(ref ast: DataArray, ref symbolTables: SymbolTables, ref symbolTab
     astPointer := 0;
     var_alloc_rec(ast, astPointer, symbolTables, 0, symbolTableEntries, keyBuf);
 }
+proc stack_align(size: int, ref r: int) {
+    r := size + 16 - 1;
+    r := r / 16;
+    r := r * 16;
+}
+proc print_register(reg: int) {
+    if (reg = 0) {
+        printc('r'); printc('d'); printc('i');
+    } else if (reg = 1) {
+        printc('r'); printc('s'); printc('i');
+    } else if (reg = 2) {
+        printc('r'); printc('d'); printc('x');
+    } else if (reg = 3) {
+        printc('r'); printc('c'); printc('x');
+    } else if (reg = 4) {
+        printc('r'); printc('8');
+    } else if (reg = 5) {
+        printc('r'); printc('9');
+    } else if (reg = 6) {
+        printc('r'); printc('b'); printc('p');
+    } else if (reg = 7) {
+        printc('r'); printc('s'); printc('p');
+    } else if (reg = 15) {
+        printc('r'); printc('b'); printc('x');
+    } else if (reg = 14) {
+        printc('r'); printc('1'); printc('5');
+    } else if (reg = 13) {
+        printc('r'); printc('1'); printc('4');
+    } else if (reg = 12) {
+        printc('r'); printc('1'); printc('3');
+    } else if (reg = 11) {
+        printc('r'); printc('1'); printc('2');
+    } else if (reg = 10) {
+        printc('r'); printc('1'); printc('1');
+    } else if (reg = 9) {
+        printc('r'); printc('1'); printc('0');
+    } else if (reg = 8) {
+        printc('r'); printc('a'); printc('x');
+    } else {
+        exit();
+    }
+}
+proc print_label(n: int) {
+    printc('L'); printi(n);
+}
+proc codegen_param_decl_list(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    procEntryIndex: int,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var paramCount: int;
+    var i: int;
+    var currParamIndex: int;
+    var varEntryFound: int;
+    var varEntryIndex: int;
+    var varNameStart: int;
+    var varNameLen: int;
+    paramCount := entries[procEntryIndex + 2];
+    currParamIndex := 0;
+    i := 0;
+    astPointer := astPointer + 2;
+    while (ast[astPointer] = 12) {
+        astPointer := astPointer + 4;
+        varNameLen := ast[astPointer];
+        astPointer := astPointer + 1;
+        varNameStart := astPointer;
+        astPointer := astPointer + varNameLen;
+        astPointer := astPointer + 1 + 1 + ast[astPointer + 1];
+        if (i < 6) {
+            hashmap_cpy_key(ast, keyBuf, varNameStart, varNameLen);
+            symbol_table_lookup(symbolTables, tablePointer, keyBuf, varNameLen, varEntryFound, varEntryIndex);
+            printc(' '); printc(' '); printc(' '); printc(' '); printc('m'); printc('o'); printc('v'); printc(' '); printc('['); print_register(entries[varEntryIndex + 4]); printc('+'); printi(entries[varEntryIndex + 5]); printc(']'); printc(','); printc(' '); print_register(entries[procEntryIndex + 3 + currParamIndex + 1]); printc('\n');
+        }
+        currParamIndex := currParamIndex + 5;
+        i := i + 1;
+    }
+    astPointer := astPointer + 1 + 1 + ast[astPointer + 1];
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+}
+proc codegen_proc_decl(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var procNameStart: int;
+    var procNameLen: int;
+    var procEntryIndex: int;
+    var procEntryFound: int;
+    var alignedStackSize: int;
+    var paramCount: int;
+    var localTablePointer: int;
+    procNameLen := ast[astPointer];
+    astPointer := astPointer + 1;
+    procNameStart := astPointer;
+    astPointer := astPointer + procNameLen;
+    hashmap_cpy_key(ast, keyBuf, procNameStart, procNameLen);
+    symbol_table_lookup(symbolTables, 0, keyBuf, procNameLen, procEntryFound, procEntryIndex);
+    localTablePointer := entries[procEntryIndex + 1];
+    paramCount := entries[procEntryIndex + 2];
+    stack_align(entries[procEntryIndex + 3 + paramCount * 5] + entries[procEntryIndex + 3 + paramCount * 5 + 2], alignedStackSize);
+    printc('_'); print_array(ast, procNameStart, procNameLen); printc(':'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc(';'); printc(' '); printc('A'); printc('l'); printc('l'); printc('o'); printc('c'); printc('a'); printc('t'); printc('e'); printc(' '); printc('s'); printc('t'); printc('a'); printc('c'); printc('k'); printc(' '); printc('f'); printc('r'); printc('a'); printc('m'); printc('e'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('p'); printc('u'); printc('s'); printc('h'); printc(' '); printc('r'); printc('b'); printc('p'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('m'); printc('o'); printc('v'); printc(' '); printc('r'); printc('b'); printc('p'); printc(','); printc(' '); printc('r'); printc('s'); printc('p'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('s'); printc('u'); printc('b'); printc(' '); printc('r'); printc('s'); printc('p'); printc(','); printc(' '); printi(alignedStackSize); printc('\n');
+    printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc(';'); printc(' '); printc('B'); printc('a'); printc('c'); printc('k'); printc('u'); printc('p'); printc(' '); printc('c'); printc('a'); printc('l'); printc('l'); printc('e'); printc('e'); printc('-'); printc('s'); printc('a'); printc('v'); printc('e'); printc('d'); printc(' '); printc('r'); printc('e'); printc('g'); printc('i'); printc('s'); printc('t'); printc('e'); printc('r'); printc('s'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('p'); printc('u'); printc('s'); printc('h'); printc(' '); printc('r'); printc('b'); printc('x'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('p'); printc('u'); printc('s'); printc('h'); printc(' '); printc('r'); printc('1'); printc('2'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('p'); printc('u'); printc('s'); printc('h'); printc(' '); printc('r'); printc('1'); printc('3'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('p'); printc('u'); printc('s'); printc('h'); printc(' '); printc('r'); printc('1'); printc('4'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('p'); printc('u'); printc('s'); printc('h'); printc(' '); printc('r'); printc('1'); printc('5'); printc('\n');
+    printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc(';'); printc(' '); printc('A'); printc('l'); printc('i'); printc('g'); printc('n'); printc(' '); printc('s'); printc('t'); printc('a'); printc('c'); printc('k'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('s'); printc('u'); printc('b'); printc(' '); printc('r'); printc('s'); printc('p'); printc(','); printc(' '); printi(8); printc('\n');
+    printc('\n');
+    codegen_param_decl_list(ast, astPointer, symbolTables, localTablePointer, entries, keyBuf, procEntryIndex, currReg, currLabel);
+    printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc(';'); printc(' '); printc('R'); printc('e'); printc('s'); printc('t'); printc('o'); printc('r'); printc('e'); printc(' '); printc('c'); printc('a'); printc('l'); printc('l'); printc('e'); printc('e'); printc('-'); printc('s'); printc('a'); printc('v'); printc('e'); printc('d'); printc(' '); printc('r'); printc('e'); printc('g'); printc('i'); printc('s'); printc('t'); printc('e'); printc('r'); printc('s'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('p'); printc('o'); printc('p'); printc(' '); printc('r'); printc('1'); printc('5'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('p'); printc('o'); printc('p'); printc(' '); printc('r'); printc('1'); printc('4'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('p'); printc('o'); printc('p'); printc(' '); printc('r'); printc('1'); printc('3'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('p'); printc('o'); printc('p'); printc(' '); printc('r'); printc('1'); printc('2'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('p'); printc('o'); printc('p'); printc(' '); printc('r'); printc('b'); printc('x'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc(';'); printc(' '); printc('A'); printc('l'); printc('i'); printc('g'); printc('n'); printc(' '); printc('s'); printc('t'); printc('a'); printc('c'); printc('k'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('a'); printc('d'); printc('d'); printc(' '); printc('r'); printc('s'); printc('p'); printc(','); printc(' '); printi(8); printc('\n');
+    printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc(';'); printc(' '); printc('D'); printc('e'); printc('s'); printc('t'); printc('r'); printc('o'); printc('y'); printc(' '); printc('s'); printc('t'); printc('a'); printc('c'); printc('k'); printc(' '); printc('f'); printc('r'); printc('a'); printc('m'); printc('e'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('m'); printc('o'); printc('v'); printc(' '); printc('r'); printc('s'); printc('p'); printc(','); printc(' '); printc('r'); printc('b'); printc('p'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('p'); printc('o'); printc('p'); printc(' '); printc('r'); printc('b'); printc('p'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('r'); printc('e'); printc('t'); printc('\n');
+    printc('\n');
+}
+proc codegen_assgn_stmt(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var addressRegister: int;
+    var valueRegister: int;
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    addressRegister := currReg;
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    valueRegister := currReg;
+    currReg := currReg - 1;
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('m'); printc('o'); printc('v'); printc(' '); printc('['); print_register(addressRegister); printc(']'); printc(','); printc(' '); print_register(valueRegister); printc('\n');
+    currReg := currReg - 1;
+}
+proc codegen_int_lit(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var value: int;
+    astPointer := astPointer + 1;
+    value := ast[astPointer];
+    astPointer := astPointer + 1;
+    currReg := currReg + 1;
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('m'); printc('o'); printc('v'); printc(' '); print_register(currReg); printc(','); printc(' '); printc('q'); printc('w'); printc('o'); printc('r'); printc('d'); printc(' '); printi(value); printc('\n');
+}
+proc codegen_named_var(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var varNameLen: int;
+    var varNameStart: int;
+    var varEntryFound: int;
+    var varEntryIndex: int;
+    astPointer := astPointer + 1;
+    varNameLen := ast[astPointer];
+    astPointer := astPointer + 1;
+    varNameStart := astPointer;
+    astPointer := astPointer + varNameLen;
+    hashmap_cpy_key(ast, keyBuf, varNameStart, varNameLen);
+    symbol_table_lookup(symbolTables, tablePointer, keyBuf, varNameLen, varEntryFound, varEntryIndex);
+    currReg := currReg + 1;
+    if (entries[varEntryIndex + 1] # 0) {
+        printc(' '); printc(' '); printc(' '); printc(' '); printc('m'); printc('o'); printc('v'); printc(' '); print_register(currReg); printc(','); printc(' '); printc('['); print_register(entries[varEntryIndex + 4]); printc('+'); printi(entries[varEntryIndex + 5]); printc(']'); printc('\n');
+    } else {
+        printc(' '); printc(' '); printc(' '); printc(' '); printc('l'); printc('e'); printc('a'); printc(' '); print_register(currReg); printc(','); printc(' '); printc('['); print_register(entries[varEntryIndex + 4]); printc('+'); printi(entries[varEntryIndex + 5]); printc(']'); printc('\n');
+    }
+}
+proc codegen_bin_expr(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var operator: int;
+    astPointer := astPointer + 1;
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    operator := ast[astPointer];
+    astPointer := astPointer + 1;
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    if (operator = 23) {
+        printc(' '); printc(' '); printc(' '); printc(' '); printc('a'); printc('d'); printc('d'); printc(' '); print_register(currReg - 1); printc(','); printc(' '); print_register(currReg); printc('\n');
+    } else if (operator = 24) {
+        printc(' '); printc(' '); printc(' '); printc(' '); printc('s'); printc('u'); printc('b'); printc(' '); print_register(currReg - 1); printc(','); printc(' '); print_register(currReg); printc('\n');
+    } else if (operator = 25) {
+        printc(' '); printc(' '); printc(' '); printc(' '); printc('i'); printc('m'); printc('u'); printc('l'); printc(' '); print_register(currReg - 1); printc(','); printc(' '); print_register(currReg); printc('\n');
+    } else if (operator = 26) {
+        printc(' '); printc(' '); printc(' '); printc(' '); printc('m'); printc('o'); printc('v'); printc(' '); printc('r'); printc('a'); printc('x'); printc(','); printc(' '); print_register(currReg - 1); printc('\n');
+        printc(' '); printc(' '); printc(' '); printc(' '); printc('c'); printc('q'); printc('o'); printc('\n');
+        printc(' '); printc(' '); printc(' '); printc(' '); printc('i'); printc('d'); printc('i'); printc('v'); printc(' '); print_register(currReg); printc('\n');
+        printc(' '); printc(' '); printc(' '); printc(' '); printc('m'); printc('o'); printc('v'); printc(' '); print_register(currReg - 1); printc(','); printc(' '); printc('r'); printc('a'); printc('x'); printc('\n');
+    } else {
+        exit();
+    }
+    currReg := currReg - 1;
+}
+proc codegen_var_expr(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    astPointer := astPointer + 1;
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('m'); printc('o'); printc('v'); printc(' '); print_register(currReg); printc(','); printc(' '); printc('['); print_register(currReg); printc(']'); printc('\n');
+}
+proc codegen_una_expr(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var operator: int;
+    astPointer := astPointer + 1;
+    operator := ast[astPointer];
+    astPointer := astPointer + 1;
+    if (operator = 24) {
+        codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+        printc(' '); printc(' '); printc(' '); printc(' '); printc('n'); printc('e'); printc('g'); printc(' '); print_register(currReg); printc('\n');
+    } else {
+        exit();
+    }
+}
+proc codegen_arr_acc(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var typeIndex: int;
+    var arrSize: int;
+    var resolvedTypeIndex: int;
+    var baseTypeIndex: int;
+    var baseTypeSize: int;
+    astPointer := astPointer + 1;
+    typeIndex := ast[astPointer + 2];
+    resolve_type_ref(typeIndex, entries, resolvedTypeIndex);
+    arrSize := entries[resolvedTypeIndex + 1];
+    baseTypeIndex := resolvedTypeIndex + 2;
+    baseTypeSize := 0;
+    calc_type_byte_size(baseTypeIndex, entries, baseTypeSize);
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('c'); printc('m'); printc('p'); printc(' '); print_register(currReg); printc(','); printc(' '); printi(0); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('j'); printc('l'); printc(' '); printc('_'); printc('_'); printc('a'); printc('r'); printc('r'); printc('a'); printc('y'); printc('A'); printc('c'); printc('c'); printc('e'); printc('s'); printc('s'); printc('O'); printc('u'); printc('t'); printc('O'); printc('f'); printc('B'); printc('o'); printc('u'); printc('n'); printc('d'); printc('s'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('c'); printc('m'); printc('p'); printc(' '); print_register(currReg); printc(','); printc(' '); printi(arrSize); printc('\n');;
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('j'); printc('a'); printc('e'); printc(' '); printc('_'); printc('_'); printc('a'); printc('r'); printc('r'); printc('a'); printc('y'); printc('A'); printc('c'); printc('c'); printc('e'); printc('s'); printc('s'); printc('O'); printc('u'); printc('t'); printc('O'); printc('f'); printc('B'); printc('o'); printc('u'); printc('n'); printc('d'); printc('s'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('i'); printc('m'); printc('u'); printc('l'); printc(' '); print_register(currReg); printc(','); printc(' '); printi(baseTypeSize); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('a'); printc('d'); printc('d'); printc(' '); print_register(currReg - 1); printc(','); printc(' '); print_register(currReg); printc('\n');
+    currReg := currReg - 1;
+}
+proc codegen_gen_cond(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int,
+    label: int
+) {
+    var operator: int;
+    astPointer := astPointer + 3;
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    operator := ast[astPointer];
+    astPointer := astPointer + 1;
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('c'); printc('m'); printc('p'); printc(' '); print_register(currReg - 1); printc(','); printc(' '); print_register(currReg); printc('\n');
+    if (operator = 17) {
+        printc(' '); printc(' '); printc(' '); printc(' '); printc('j'); printc('n'); printc('e'); printc(' '); print_label(label); printc('\n');
+    } else if (operator = 18) {
+        printc(' '); printc(' '); printc(' '); printc(' '); printc('j'); printc('e'); printc(' '); print_label(label); printc('\n');
+    } else if (operator = 19) {
+        printc(' '); printc(' '); printc(' '); printc(' '); printc('j'); printc('g'); printc('e'); printc(' '); print_label(label); printc('\n');
+    } else if (operator = 20) {
+        printc(' '); printc(' '); printc(' '); printc(' '); printc('j'); printc('g'); printc(' '); print_label(label); printc('\n');
+    } else if (operator = 21) {
+        printc(' '); printc(' '); printc(' '); printc(' '); printc('j'); printc('l'); printc('e'); printc(' '); print_label(label); printc('\n');
+    } else if (operator = 22) {
+        printc(' '); printc(' '); printc(' '); printc(' '); printc('j'); printc('l'); printc(' '); print_label(label); printc('\n');
+    } else {
+        exit();
+    }
+    currReg := currReg - 1;
+    currReg := currReg - 1;
+}
+proc codegen_if_stmt(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var label0: int;
+    var label1: int;
+    label0 := currLabel;
+    currLabel := currLabel + 1;
+    codegen_gen_cond(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel, label0);
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    if (ast[astPointer] = 7) {
+        astPointer := astPointer + 1 + 1 + ast[astPointer + 1];
+        printc(' '); printc(' '); printc(' '); printc(' '); print_label(label0); printc(':'); printc('\n');
+    } else {
+        label1 := currLabel;
+        currLabel := currLabel + 1;
+        printc(' '); printc(' '); printc(' '); printc(' '); printc('j'); printc('m'); printc('p'); printc(' '); print_label(label1); printc('\n');
+        printc(' '); printc(' '); printc(' '); printc(' '); print_label(label0); printc(':'); printc('\n');
+        codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+        printc(' '); printc(' '); printc(' '); printc(' '); print_label(label1); printc(':'); printc('\n');
+    }
+}
+proc codegen_while_stmt(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var label0: int;
+    var label1: int;
+    label0 := currLabel;
+    currLabel := currLabel + 1;
+    label1 := currLabel;
+    currLabel := currLabel + 1;
+    printc(' '); printc(' '); printc(' '); printc(' '); print_label(label0); printc(':'); printc('\n');
+    codegen_gen_cond(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel, label1);
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('j'); printc('m'); printc('p'); printc(' '); print_label(label0); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); print_label(label1); printc(':'); printc('\n');
+}
+proc codegen_call_stmt(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var procNameStart: int;
+    var procNameLen: int;
+    var procEntryIndex: int;
+    var procEntryFound: int;
+    var paramCount: int;
+    var i: int;
+    var j: int;
+    var origAstPointer: int;
+    var currParamIndex: int;
+    procNameLen := ast[astPointer];
+    astPointer := astPointer + 1;
+    procNameStart := astPointer;
+    astPointer := astPointer + procNameLen;
+    hashmap_cpy_key(ast, keyBuf, procNameStart, procNameLen);
+    symbol_table_lookup(symbolTables, 0, keyBuf, procNameLen, procEntryFound, procEntryIndex);
+    paramCount := entries[procEntryIndex + 2];
+    astPointer := astPointer + 2;
+    origAstPointer := astPointer;
+    i := 0;
+    while (i < paramCount) {
+        j := 0;
+        while (j < paramCount - i - 1) {
+            astPointer := astPointer + 1 + 1 + ast[astPointer + 1];
+            j := j + 1;
+        }
+        currParamIndex := j * 5;
+        if (entries[procEntryIndex + 3 + currParamIndex] # 0) {
+            astPointer := astPointer + 3;
+            codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+        } else {
+            codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+        }
+        if (entries[procEntryIndex + 3 + currParamIndex + 1] # 6) {
+            printc(' '); printc(' '); printc(' '); printc(' '); printc('m'); printc('o'); printc('v'); printc(' '); print_register(entries[procEntryIndex + 3 + currParamIndex + 1]); printc(','); printc(' '); print_register(currReg); printc('\n');
+        } else {
+            printc(' '); printc(' '); printc(' '); printc(' '); printc('m'); printc('o'); printc('v'); printc(' '); printc('['); print_register(entries[procEntryIndex + 3 + currParamIndex + 1]); printc('+'); printi(entries[procEntryIndex + 3 + currParamIndex + 2]); printc(']'); printc(','); printc(' '); print_register(currReg); printc('\n');
+        }
+        currReg := currReg - 1;
+        astPointer := origAstPointer;
+        i := i + 1;
+    }
+    astPointer := astPointer - 2;
+    astPointer := astPointer + 1 + 1 + ast[astPointer + 1];
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('c'); printc('a'); printc('l'); printc('l'); printc(' '); printc('_'); print_array(ast, procNameStart, procNameLen); printc('\n');
+}
+proc codegen_rec(
+    ref ast: DataArray,
+    ref astPointer: int,
+    ref symbolTables: SymbolTables,
+    tablePointer: int,
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var nodeType: int;
+    var nodeLength: int;
+    var t: int;
+    nodeType := ast[astPointer];
+    astPointer := astPointer + 1;
+    nodeLength := ast[astPointer];
+    astPointer := astPointer + 1;
+    if (nodeType = 14) {
+        codegen_proc_decl(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = 5) {
+        codegen_call_stmt(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = 21) {
+        codegen_while_stmt(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = 8) {
+        codegen_if_stmt(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = 6) {
+        codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = 1) {
+         codegen_arr_acc(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = 17) {
+        codegen_una_expr(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = 20) {
+        codegen_var_expr(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = 4) {
+        codegen_bin_expr(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = 11) {
+        codegen_named_var(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = 3) {
+        codegen_assgn_stmt(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = 9) {
+        codegen_int_lit(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = 15) {
+        t := astPointer;
+        while (astPointer < t + nodeLength) {
+            codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+        }
+    } else {
+        astPointer := astPointer + nodeLength;
+    }
+}
+proc codegen(ref ast: DataArray, ref symbolTables: SymbolTables, ref symbolTableEntries: DataArray) {
+    var astPointer: int;
+    var keyBuf: HashMapKeyBuffer;
+    var currReg: int;
+    var currLabel: int;
+    astPointer := 0;
+    currReg := 9 - 1;
+    currLabel := 0;
+    printc('s'); printc('e'); printc('c'); printc('t'); printc('i'); printc('o'); printc('n'); printc(' '); printc('.'); printc('t'); printc('e'); printc('x'); printc('t'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('g'); printc('l'); printc('o'); printc('b'); printc('a'); printc('l'); printc(' '); printc('m'); printc('a'); printc('i'); printc('n'); printc('\n');
+    printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('e'); printc('x'); printc('t'); printc('e'); printc('r'); printc('n'); printc(' '); printc('p'); printc('r'); printc('i'); printc('n'); printc('t'); printc('f'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('e'); printc('x'); printc('t'); printc('e'); printc('r'); printc('n'); printc(' '); printc('e'); printc('x'); printc('i'); printc('t'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('e'); printc('x'); printc('t'); printc('e'); printc('r'); printc('n'); printc(' '); printc('_'); printc('_'); printc('i'); printc('n'); printc('i'); printc('t'); printc('_'); printc('t'); printc('i'); printc('m'); printc('e'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('e'); printc('x'); printc('t'); printc('e'); printc('r'); printc('n'); printc(' '); printc('_'); printc('t'); printc('i'); printc('m'); printc('e'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('e'); printc('x'); printc('t'); printc('e'); printc('r'); printc('n'); printc(' '); printc('_'); printc('p'); printc('r'); printc('i'); printc('n'); printc('t'); printc('i'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('e'); printc('x'); printc('t'); printc('e'); printc('r'); printc('n'); printc(' '); printc('_'); printc('p'); printc('r'); printc('i'); printc('n'); printc('t'); printc('c'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('e'); printc('x'); printc('t'); printc('e'); printc('r'); printc('n'); printc(' '); printc('_'); printc('e'); printc('x'); printc('i'); printc('t'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('e'); printc('x'); printc('t'); printc('e'); printc('r'); printc('n'); printc(' '); printc('_'); printc('r'); printc('e'); printc('a'); printc('d'); printc('i'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('e'); printc('x'); printc('t'); printc('e'); printc('r'); printc('n'); printc(' '); printc('_'); printc('r'); printc('e'); printc('a'); printc('d'); printc('c'); printc('\n');
+    printc('\n');
+    printc('_'); printc('_'); printc('a'); printc('r'); printc('r'); printc('a'); printc('y'); printc('A'); printc('c'); printc('c'); printc('e'); printc('s'); printc('s'); printc('O'); printc('u'); printc('t'); printc('O'); printc('f'); printc('B'); printc('o'); printc('u'); printc('n'); printc('d'); printc('s'); printc(':'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('x'); printc('o'); printc('r'); printc(' '); printc('r'); printc('a'); printc('x'); printc(','); printc(' '); printc('r'); printc('a'); printc('x'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('m'); printc('o'); printc('v'); printc(' '); printc('r'); printc('d'); printc('i'); printc(','); printc(' '); printc('a'); printc('r'); printc('r'); printc('a'); printc('y'); printc('_'); printc('o'); printc('o'); printc('b'); printc('_'); printc('e'); printc('r'); printc('r'); printc('o'); printc('r'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('c'); printc('a'); printc('l'); printc('l'); printc(' '); printc('p'); printc('r'); printc('i'); printc('n'); printc('t'); printc('f'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('m'); printc('o'); printc('v'); printc(' '); printc('r'); printc('d'); printc('i'); printc(','); printc(' '); printc('1'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('c'); printc('a'); printc('l'); printc('l'); printc(' '); printc('e'); printc('x'); printc('i'); printc('t'); printc('\n');
+    printc('\n');
+    printc('m'); printc('a'); printc('i'); printc('n'); printc(':'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('p'); printc('u'); printc('s'); printc('h'); printc(' '); printc('r'); printc('b'); printc('p'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('m'); printc('o'); printc('v'); printc(' '); printc('r'); printc('b'); printc('p'); printc(','); printc(' '); printc('r'); printc('s'); printc('p'); printc('\n');
+    printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('c'); printc('a'); printc('l'); printc('l'); printc(' '); printc('_'); printc('_'); printc('i'); printc('n'); printc('i'); printc('t'); printc('_'); printc('t'); printc('i'); printc('m'); printc('e'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('c'); printc('a'); printc('l'); printc('l'); printc(' '); printc('_'); printc('m'); printc('a'); printc('i'); printc('n'); printc('\n');
+    printc('\n');;
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('m'); printc('o'); printc('v'); printc(' '); printc('r'); printc('d'); printc('i'); printc(','); printc(' '); printc('0'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('c'); printc('a'); printc('l'); printc('l'); printc(' '); printc('e'); printc('x'); printc('i'); printc('t'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('p'); printc('o'); printc('p'); printc(' '); printc('r'); printc('b'); printc('p'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('r'); printc('e'); printc('t'); printc('\n');
+    printc('\n');;
+    codegen_rec(ast, astPointer, symbolTables, 0, symbolTableEntries, keyBuf, currReg, currLabel);
+    printc('s'); printc('e'); printc('c'); printc('t'); printc('i'); printc('o'); printc('n'); printc(' '); printc('.'); printc('d'); printc('a'); printc('t'); printc('a'); printc('\n');
+    printc(' '); printc(' '); printc(' '); printc(' '); printc('a'); printc('r'); printc('r'); printc('a'); printc('y'); printc('_'); printc('o'); printc('o'); printc('b'); printc('_'); printc('e'); printc('r'); printc('r'); printc('o'); printc('r'); printc(':'); printc(' '); printc('d'); printc('b'); printc(' '); printc('"'); printc('e'); printc('r'); printc('r'); printc('o'); printc('r');
+            printc(':'); printc(' '); printc('a'); printc('r'); printc('r'); printc('a'); printc('y'); printc(' '); printc('a'); printc('c'); printc('c'); printc('e'); printc('s'); printc('s'); printc(' '); printc('o'); printc('u'); printc('t'); printc(' '); printc('o'); printc('f'); printc(' '); printc('b'); printc('o'); printc('u'); printc('n');
+            printc('d'); printc('s'); printc('"'); printc(','); printc('1'); printc('0'); printc(','); printc('0'); printc('\n');
+    printc('\n');;
+}
 proc main() {
     var input: DataArray;
     var inputLength: int;
@@ -2444,5 +2995,5 @@ proc main() {
     name_analysis(ast, symbolTables, symbolTableEntries, symbolTableEntryPointer);
     semantic_analysis(ast, symbolTables, symbolTableEntries, symbolTableEntryPointer);
     var_alloc(ast, symbolTables, symbolTableEntries);
-    printc('s'); printc('u'); printc('c'); printc('c'); printc('e'); printc('s'); printc('s'); printc('\n');
+    codegen(ast, symbolTables, symbolTableEntries);
 }

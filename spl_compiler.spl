@@ -4,6 +4,7 @@
 #define MAX_SYMBOL_TABLES 128
 
 #define PC(x) printc(x);
+#define PI(x) printi(x);
 
 #define TOK_IDENT    0
 #define TOK_INT      1
@@ -118,20 +119,38 @@
 #define REG_R9  5
 #define REG_RBP 6
 #define REG_RSP 7
+#define REG_RAX 8
+
+#define STACK_REGISTERS_START 9
+#define REG_R10 9
+#define REG_R11 10
+#define REG_R12 11
+#define REG_R13 12
+#define REG_R14 13
+#define REG_R15 14
+#define REG_RBX 15
 
 #define WORD_SIZE 8
+#define STACK_ALIGNMENT 16
 
+#define CURR_PARAM_IS_REF entries[procEntryIndex + 3 + currParamIndex]
 #define CURR_PARAM_POSITION entries[procEntryIndex + 3 + currParamIndex + 1]
 #define CURR_PARAM_OFFSET entries[procEntryIndex + 3 + currParamIndex + 2]
 #define STACK_LAYOUT_LOCAL_VAR_AREA_SIZE entries[procEntryIndex + 3 + paramCount * 5]
 #define STACK_LAYOUT_ARG_AREA_SIZE entries[procEntryIndex + 3 + paramCount * 5 + 1]
 #define VAR_ENTRY_POSITION entries[varEntryIndex + 4]
 #define VAR_ENTRY_OFFSET entries[varEntryIndex + 5]
+#define VAR_ENTRY_IS_REFERENCE entries[varEntryIndex + 1]
 #define VAR_ENTRY_TYPE_INDEX varEntryIndex + 2
 
 #define STACK_LAYOUT_OUT_AREA_SIZE entries[procEntryIndex + 3 + paramCount * 5 + 2]
 
-type DataArray = array[99999] of int;
+#define INDENT printc(' '); printc(' '); printc(' '); printc(' ');
+
+#define NEXT_REGISTER currReg := currReg + 1;
+#define PREV_REGISTER currReg := currReg - 1;
+
+type DataArray = array[150000] of int;
 
 type HashMapKeyBuffer = array[HASHMAP_KEY_SIZE] of int;
 type HashMapComponent = array[HASHMAP_SIZE] of int;
@@ -346,7 +365,7 @@ proc read_input(ref input: DataArray, ref length: int) {
     input[0] := char;
 
     index := 1;
-    while (char # 0x2E) { // Input file must end with dot (0x2E) to indicate EOF
+    while (char # 0x40) { // Input file must end with at (0x40) to indicate EOF
         readc(char);
         input[index] := char;
         index := index + 1;
@@ -3002,7 +3021,7 @@ proc var_alloc_param_decl_list(
             CURR_PARAM_OFFSET := STACK_LAYOUT_ARG_AREA_SIZE;
 
             VAR_ENTRY_POSITION := REG_RBP;
-            VAR_ENTRY_OFFSET := STACK_LAYOUT_ARG_AREA_SIZE + 16; // old frame pointer (8) + return address (8)
+            VAR_ENTRY_OFFSET := STACK_LAYOUT_ARG_AREA_SIZE + 2 * WORD_SIZE; // old frame pointer (8) + return address (8)
 
             STACK_LAYOUT_ARG_AREA_SIZE := STACK_LAYOUT_ARG_AREA_SIZE + WORD_SIZE;
         }
@@ -3069,6 +3088,7 @@ proc var_alloc_proc_decl(
     var localTablePointer: int;
     var outgoingAreaSize: int;
     var paramCount: int;
+    var origAstPointer: int;
 
     procNameLen := ast[astPointer];
     astPointer := astPointer + 1;
@@ -3082,10 +3102,16 @@ proc var_alloc_proc_decl(
 
     localTablePointer := entries[procEntryIndex + 1];
 
+    // NOTE: It should not matter whether parameters or variables are allocated first. I do this to achieve perfect consistency with the host compiler.
+    origAstPointer := astPointer;
+    SKIP_NODE // Skip param decl list
+    var_alloc_var_decl_list(ast, astPointer, symbolTables, localTablePointer, entries, keyBuf, procEntryIndex, paramCount);
+    astPointer := origAstPointer;
+
     var_alloc_param_decl_list(ast, astPointer, symbolTables, localTablePointer, entries, keyBuf, procEntryIndex);
     
-    var_alloc_var_decl_list(ast, astPointer, symbolTables, localTablePointer, entries, keyBuf, procEntryIndex, paramCount);
-    
+    SKIP_NODE // Skip var decl list
+
     outgoingAreaSize := 0;
     outgoing_area(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, outgoingAreaSize);
     STACK_LAYOUT_OUT_AREA_SIZE := outgoingAreaSize;
@@ -3130,6 +3156,708 @@ proc var_alloc(ref ast: DataArray, ref symbolTables: SymbolTables, ref symbolTab
     var_alloc_rec(ast, astPointer, symbolTables, 0, symbolTableEntries, keyBuf);
 }
 
+proc stack_align(size: int, ref r: int) {
+    r := size + STACK_ALIGNMENT - 1;
+    r := r / STACK_ALIGNMENT;
+    r := r * STACK_ALIGNMENT;
+}
+
+#define BRACK(x) PC('[') x PC(']')
+#define QWORD(x) PC('q') PC('w') PC('o') PC('r') PC('d') PC(' ') x
+
+#define PUSH(a) PC('p') PC('u') PC('s') PC('h') PC(' ') a PC('\n')
+#define MOV(a, b) PC('m') PC('o') PC('v') PC(' ') a PC(',') PC(' ') b PC('\n')
+#define LEA(a, b) PC('l') PC('e') PC('a') PC(' ') a PC(',') PC(' ') b PC('\n')
+#define ADD(a, b) PC('a') PC('d') PC('d') PC(' ') a PC(',') PC(' ') b PC('\n')
+#define SUB(a, b) PC('s') PC('u') PC('b') PC(' ') a PC(',') PC(' ') b PC('\n')
+#define IMUL(a, b) PC('i') PC('m') PC('u') PC('l') PC(' ') a PC(',') PC(' ') b PC('\n')
+#define CQO PC('c') PC('q') PC('o') PC('\n')
+#define IDIV(a) PC('i') PC('d') PC('i') PC('v') PC(' ') a PC('\n')
+#define NEG(a) PC('n') PC('e') PC('g') PC(' ') a PC('\n')
+#define CMP(a, b) PC('c') PC('m') PC('p') PC(' ') a PC(',') PC(' ') b PC('\n')
+#define JL(a) PC('j') PC('l') PC(' ') a PC('\n')
+#define JAE(a) PC('j') PC('a') PC('e') PC(' ') a PC('\n')
+#define JNE(a) PC('j') PC('n') PC('e') PC(' ') a PC('\n')
+#define JE(a) PC('j') PC('e') PC(' ') a PC('\n')
+#define JGE(a) PC('j') PC('g') PC('e') PC(' ') a PC('\n')
+#define JG(a) PC('j') PC('g') PC(' ') a PC('\n')
+#define JLE(a) PC('j') PC('l') PC('e') PC(' ') a PC('\n')
+#define JL(a) PC('j') PC('l') PC(' ') a PC('\n')
+#define JMP(a) PC('j') PC('m') PC('p') PC(' ') a PC('\n')
+#define CALL(a) PC('c') PC('a') PC('l') PC('l') PC(' ') a PC('\n')
+
+#define LABEL(a) print_label(a); PC(':') PC('\n')
+
+#define POP(a) PC('p') PC('o') PC('p') PC(' ') a PC('\n')
+#define RET PC('r') PC('e') PC('t') PC('\n')
+
+#define RBP PC('r') PC('b') PC('p')
+#define RSP PC('r') PC('s') PC('p')
+#define RBX PC('r') PC('b') PC('x')
+#define RCX PC('r') PC('c') PC('x')
+#define RDX PC('r') PC('d') PC('x')
+#define RSI PC('r') PC('s') PC('i')
+#define RDI PC('r') PC('d') PC('i')
+#define RAX PC('r') PC('a') PC('x')
+#define R8  PC('r') PC('8')
+#define R9  PC('r') PC('9')
+#define R10 PC('r') PC('1') PC('0')
+#define R11 PC('r') PC('1') PC('1')
+#define R12 PC('r') PC('1') PC('2')
+#define R13 PC('r') PC('1') PC('3')
+#define R14 PC('r') PC('1') PC('4')
+#define R15 PC('r') PC('1') PC('5')
+
+proc print_register(reg: int) {
+    if (reg = REG_RDI) {
+        RDI
+    } else if (reg = REG_RSI) {
+        RSI
+    } else if (reg = REG_RDX) {
+        RDX
+    } else if (reg = REG_RCX) {
+        RCX
+    } else if (reg = REG_R8) {
+        R8
+    } else if (reg = REG_R9) {
+        R9
+    } else if (reg = REG_RBP) {
+        RBP
+    } else if (reg = REG_RSP) {
+        RSP
+    } else if (reg = REG_RBX) {
+        RBX
+    } else if (reg = REG_R15) {
+        R15
+    } else if (reg = REG_R14) {
+        R14
+    } else if (reg = REG_R13) {
+        R13
+    } else if (reg = REG_R12) {
+        R12
+    } else if (reg = REG_R11) {
+        R11
+    } else if (reg = REG_R10) {
+        R10
+    } else if (reg = REG_RAX) {
+        RAX
+    } else {
+        exit(); // INTERNAL ERROR: Unknown register
+    }
+}
+
+proc print_label(n: int) {
+    PC('L') PI(n)
+}
+
+proc codegen_param_decl_list(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    procEntryIndex: int,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var paramCount: int;
+    var i: int;
+    var currParamIndex: int;
+    var varEntryFound: int;
+    var varEntryIndex: int;
+    var varNameStart: int;
+    var varNameLen: int;
+
+    paramCount := entries[procEntryIndex + 2];
+
+    currParamIndex := 0;
+    i := 0;
+    astPointer := astPointer + 2;
+    while (ast[astPointer] = NODE_PARAM_DECL) {
+        astPointer := astPointer + 4; // Skip head, length, datatype, isReference
+
+        varNameLen := ast[astPointer];
+        astPointer := astPointer + 1;
+        varNameStart := astPointer;
+        astPointer := astPointer + varNameLen;
+
+        SKIP_NODE // Skip type expresssion
+
+        if (i < 6) { // First six arguments are passed in register
+            hashmap_cpy_key(ast, keyBuf, varNameStart, varNameLen);
+            symbol_table_lookup(symbolTables, tablePointer, keyBuf, varNameLen, varEntryFound, varEntryIndex);
+
+            INDENT MOV(BRACK(print_register(VAR_ENTRY_POSITION); PC('+') PI(VAR_ENTRY_OFFSET)), print_register(CURR_PARAM_POSITION);)
+        }
+
+        currParamIndex := currParamIndex + 5;
+        i := i + 1;
+    }
+
+    SKIP_NODE // Skip var decl list
+
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+}
+
+proc codegen_proc_decl(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var procNameStart: int;
+    var procNameLen: int;
+    var procEntryIndex: int;
+    var procEntryFound: int;
+    var alignedStackSize: int;
+    var paramCount: int;
+    var localTablePointer: int;
+
+    procNameLen := ast[astPointer];
+    astPointer := astPointer + 1;
+    procNameStart := astPointer;
+    astPointer := astPointer + procNameLen;
+
+    hashmap_cpy_key(ast, keyBuf, procNameStart, procNameLen);
+    symbol_table_lookup(symbolTables, 0, keyBuf, procNameLen, procEntryFound, procEntryIndex);
+
+    localTablePointer := entries[procEntryIndex + 1];
+    paramCount := entries[procEntryIndex + 2];
+
+    stack_align(STACK_LAYOUT_LOCAL_VAR_AREA_SIZE + STACK_LAYOUT_OUT_AREA_SIZE, alignedStackSize);
+
+    PC('_') print_array(ast, procNameStart, procNameLen); PC(':') PC('\n')
+    INDENT PC(';') PC(' ') PC('A') PC('l') PC('l') PC('o') PC('c') PC('a') PC('t') PC('e') PC(' ') PC('s') PC('t') PC('a') PC('c') PC('k') PC(' ') PC('f') PC('r') PC('a') PC('m') PC('e') PC('\n')
+    INDENT PUSH(RBP)
+    INDENT MOV(RBP, RSP)
+    INDENT SUB(RSP, PI(alignedStackSize))
+    PC('\n')
+
+    INDENT PC(';') PC(' ') PC('B') PC('a') PC('c') PC('k') PC('u') PC('p') PC(' ') PC('c') PC('a') PC('l') PC('l') PC('e') PC('e') PC('-') PC('s') PC('a') PC('v') PC('e') PC('d') PC(' ') PC('r') PC('e') PC('g') PC('i') PC('s') PC('t') PC('e') PC('r') PC('s') PC('\n')
+    INDENT PUSH(RBX)
+    INDENT PUSH(R12)
+    INDENT PUSH(R13)
+    INDENT PUSH(R14) 
+    INDENT PUSH(R15)
+    PC('\n')
+    INDENT PC(';') PC(' ') PC('A') PC('l') PC('i') PC('g') PC('n') PC(' ') PC('s') PC('t') PC('a') PC('c') PC('k') PC('\n')
+    INDENT SUB(RSP, PI(8))
+    PC('\n')
+
+    codegen_param_decl_list(ast, astPointer, symbolTables, localTablePointer, entries, keyBuf, procEntryIndex, currReg, currLabel);
+
+    PC('\n')
+    INDENT PC(';') PC(' ') PC('R') PC('e') PC('s') PC('t') PC('o') PC('r') PC('e') PC(' ') PC('c') PC('a') PC('l') PC('l') PC('e') PC('e') PC('-') PC('s') PC('a') PC('v') PC('e') PC('d') PC(' ') PC('r') PC('e') PC('g') PC('i') PC('s') PC('t') PC('e') PC('r') PC('s') PC('\n')
+    INDENT POP(R15)
+    INDENT POP(R14)
+    INDENT POP(R13)
+    INDENT POP(R12)
+    INDENT POP(RBX)
+    INDENT PC(';') PC(' ') PC('A') PC('l') PC('i') PC('g') PC('n') PC(' ') PC('s') PC('t') PC('a') PC('c') PC('k') PC('\n')
+    INDENT ADD(RSP, PI(8))
+
+    PC('\n')
+    INDENT PC(';') PC(' ') PC('D') PC('e') PC('s') PC('t') PC('r') PC('o') PC('y') PC(' ') PC('s') PC('t') PC('a') PC('c') PC('k') PC(' ') PC('f') PC('r') PC('a') PC('m') PC('e') PC('\n')
+    INDENT MOV(RSP, RBP)
+    INDENT POP(RBP)
+    INDENT RET
+    PC('\n')
+}
+
+proc codegen_assgn_stmt(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var addressRegister: int;
+    var valueRegister: int;
+
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    addressRegister := currReg;
+
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    valueRegister := currReg;
+
+    PREV_REGISTER
+
+    INDENT MOV(BRACK(print_register(addressRegister);), print_register(valueRegister);)
+
+    PREV_REGISTER
+}
+
+proc codegen_int_lit(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var value: int;
+
+    astPointer := astPointer + 1; // Skip slot for datatype
+    value := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    NEXT_REGISTER
+
+    INDENT MOV(print_register(currReg);, QWORD(PI(value)))
+}
+
+proc codegen_named_var(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var varNameLen: int;
+    var varNameStart: int;
+    var varEntryFound: int;
+    var varEntryIndex: int;
+
+    astPointer := astPointer + 1; // Skip slot for datatype
+
+    varNameLen := ast[astPointer];
+    astPointer := astPointer + 1;
+    varNameStart := astPointer;
+    astPointer := astPointer + varNameLen;
+
+    hashmap_cpy_key(ast, keyBuf, varNameStart, varNameLen);
+    symbol_table_lookup(symbolTables, tablePointer, keyBuf, varNameLen, varEntryFound, varEntryIndex);
+
+    NEXT_REGISTER
+    if (VAR_ENTRY_IS_REFERENCE # 0) {
+        INDENT MOV(print_register(currReg);, BRACK(print_register(VAR_ENTRY_POSITION); PC('+') PI(VAR_ENTRY_OFFSET)))
+    } else {
+        INDENT LEA(print_register(currReg);, BRACK(print_register(VAR_ENTRY_POSITION); PC('+') PI(VAR_ENTRY_OFFSET)))
+    }
+}
+
+proc codegen_bin_expr(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var operator: int;
+
+    astPointer := astPointer + 1; // Skip slot for datatype
+
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel); // left
+
+    operator := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel); // right
+
+    if (operator = TOK_PLUS) {
+        INDENT ADD(print_register(currReg - 1);, print_register(currReg);)
+    } else if (operator = TOK_MINUS) {
+        INDENT SUB(print_register(currReg - 1);, print_register(currReg);)
+    } else if (operator = TOK_ASTERISK) {
+        INDENT IMUL(print_register(currReg - 1);, print_register(currReg);)
+    } else if (operator = TOK_SLASH) {
+        INDENT MOV(RAX, print_register(currReg - 1);)
+        INDENT CQO
+        INDENT IDIV(print_register(currReg);)
+        INDENT MOV(print_register(currReg - 1);, RAX)
+    } else {
+        exit(); // INTERNAL ERROR: Unknown binary operator
+    }
+
+    PREV_REGISTER
+}
+
+proc codegen_var_expr(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    astPointer := astPointer + 1; // Skip slot for datatype
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    INDENT MOV(print_register(currReg);, BRACK(print_register(currReg);))
+}
+
+proc codegen_una_expr(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var operator: int;
+
+    astPointer := astPointer + 1; // Skip slot for datatype
+
+    operator := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    if (operator = TOK_MINUS) {
+        codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+        INDENT NEG(print_register(currReg);)
+    } else {
+        exit(); // INTERNAL ERROR: Unknown unary operator
+    }
+}
+
+proc codegen_arr_acc(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var typeIndex: int;
+    var arrSize: int;
+    var resolvedTypeIndex: int;
+    var baseTypeIndex: int;
+    var baseTypeSize: int;
+
+    astPointer := astPointer + 1; // skip type slot
+    typeIndex := ast[astPointer + 2];
+
+    resolve_type_ref(typeIndex, entries, resolvedTypeIndex);
+
+    arrSize := entries[resolvedTypeIndex + 1];
+    baseTypeIndex := resolvedTypeIndex + 2;
+
+    baseTypeSize := 0;
+    calc_type_byte_size(baseTypeIndex, entries, baseTypeSize);
+
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel); // array
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel); // index
+
+    INDENT CMP(print_register(currReg);, PI(0))
+    INDENT JL(PC('_') PC('_') PC('a') PC('r') PC('r') PC('a') PC('y') PC('A') PC('c') PC('c') PC('e') PC('s') PC('s') PC('O') PC('u') PC('t') PC('O') PC('f') PC('B') PC('o') PC('u') PC('n') PC('d') PC('s'))
+    INDENT CMP(print_register(currReg);, PI(arrSize));
+    INDENT JAE(PC('_') PC('_') PC('a') PC('r') PC('r') PC('a') PC('y') PC('A') PC('c') PC('c') PC('e') PC('s') PC('s') PC('O') PC('u') PC('t') PC('O') PC('f') PC('B') PC('o') PC('u') PC('n') PC('d') PC('s'))
+
+    INDENT IMUL(print_register(currReg);, PI(baseTypeSize))
+    INDENT ADD(print_register(currReg - 1);, print_register(currReg);)
+
+    PREV_REGISTER
+}
+
+proc codegen_gen_cond(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int,
+    label: int
+) {
+    var operator: int;
+
+    astPointer := astPointer + 3; // Skip node type, node length and slot for datatype
+
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel); // left
+
+    operator := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel); // right
+
+    INDENT CMP(print_register(currReg - 1);, print_register(currReg);)
+
+    if (operator = TOK_EQUAL) {
+        INDENT JNE(print_label(label);)
+    } else if (operator = TOK_HASH) {
+        INDENT JE(print_label(label);)
+    } else if (operator = TOK_LT) {
+        INDENT JGE(print_label(label);)
+    } else if (operator = TOK_LTE) {
+        INDENT JG(print_label(label);)
+    } else if (operator = TOK_GT) {
+        INDENT JLE(print_label(label);)
+    } else if (operator = TOK_GTE) {
+        INDENT JL(print_label(label);)
+    } else {
+        exit(); // INTERNAL ERROR: Unknown binary boolean operator
+    }
+
+    PREV_REGISTER
+    PREV_REGISTER
+}
+
+proc codegen_if_stmt(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var label0: int;
+    var label1: int;
+
+    label0 := currLabel;
+    currLabel := currLabel + 1;
+
+    codegen_gen_cond(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel, label0);
+
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel); // then part
+
+    if (ast[astPointer] = NODE_EMPTY_STMT) {
+        SKIP_NODE // Skip then part
+
+        INDENT LABEL(label0)
+    } else {  
+        label1 := currLabel;
+        currLabel := currLabel + 1;
+
+        INDENT JMP(print_label(label1);)
+
+        INDENT LABEL(label0)
+        codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel); // else part
+        INDENT LABEL(label1)
+    }
+}
+
+proc codegen_while_stmt(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var label0: int;
+    var label1: int;
+
+    label0 := currLabel;
+    currLabel := currLabel + 1;
+
+    label1 := currLabel;
+    currLabel := currLabel + 1;
+
+    INDENT LABEL(label0)
+
+    codegen_gen_cond(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel, label1);
+
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel); // body
+
+    INDENT JMP(print_label(label0);)
+    INDENT LABEL(label1)    
+}
+
+proc codegen_call_stmt(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var procNameStart: int;
+    var procNameLen: int;
+    var procEntryIndex: int;
+    var procEntryFound: int;
+    var paramCount: int;
+    var i: int;
+    var j: int;
+    var origAstPointer: int;
+    var currParamIndex: int;
+
+    procNameLen := ast[astPointer];
+    astPointer := astPointer + 1;
+    procNameStart := astPointer;
+    astPointer := astPointer + procNameLen;
+
+    hashmap_cpy_key(ast, keyBuf, procNameStart, procNameLen);
+    symbol_table_lookup(symbolTables, 0, keyBuf, procNameLen, procEntryFound, procEntryIndex);
+
+    paramCount := entries[procEntryIndex + 2];
+
+    astPointer := astPointer + 2; // Skip arg list head and length
+
+    origAstPointer := astPointer;
+
+    i := 0;
+    while (i < paramCount) {
+        j := 0;
+        while (j < paramCount - i - 1) {
+            SKIP_NODE
+
+            j := j + 1;
+        }
+
+        currParamIndex := j * 5;
+
+
+        if (CURR_PARAM_IS_REF # 0) {
+            astPointer := astPointer + 3; // Skip var expr head, length, and data type slot
+            codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);      
+        } else {
+            codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+        }
+
+        if (CURR_PARAM_POSITION # REG_RBP) {
+            INDENT MOV(print_register(CURR_PARAM_POSITION);, print_register(currReg);)
+        } else {
+            INDENT MOV(BRACK(print_register(CURR_PARAM_POSITION); PC('+') PI(CURR_PARAM_OFFSET)), print_register(currReg);)
+        }
+
+        PREV_REGISTER
+
+        astPointer := origAstPointer;
+
+        i := i + 1;
+    }
+
+    astPointer := astPointer - 2; // return to start of arg list
+    SKIP_NODE
+
+    INDENT CALL(PC('_') print_array(ast, procNameStart, procNameLen);)
+}
+
+proc codegen_rec(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray, 
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var nodeType: int;
+    var nodeLength: int;
+    var t: int;
+   
+    nodeType := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    nodeLength := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    if (nodeType = NODE_PROC_DECL) {
+        codegen_proc_decl(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = NODE_CALL_STMT) {
+        codegen_call_stmt(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);       
+    } else if (nodeType = NODE_WHILE_STMT) {
+        codegen_while_stmt(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = NODE_IF_STMT) {
+        codegen_if_stmt(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = NODE_COMP_STMT) {
+        codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = NODE_ARR_ACC) {
+         codegen_arr_acc(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);      
+    } else if (nodeType = NODE_UNA_EXPR) {
+        codegen_una_expr(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = NODE_VAR_EXPR) {
+        codegen_var_expr(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = NODE_BIN_EXPR) {
+        codegen_bin_expr(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = NODE_NAMED_VAR) {
+        codegen_named_var(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = NODE_ASSGN_STMT) {
+        codegen_assgn_stmt(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = NODE_INT_LIT) {
+        codegen_int_lit(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = NODE_STMT_LIST) {
+        t := astPointer;
+        while (astPointer < t + nodeLength) {
+            codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+        }
+    } else {
+        astPointer := astPointer + nodeLength; // Skip unhandled nodes
+    }
+}
+
+proc codegen(ref ast: DataArray, ref symbolTables: SymbolTables, ref symbolTableEntries: DataArray) {
+    var astPointer: int;
+    var keyBuf: HashMapKeyBuffer;
+    var currReg: int;
+    var currLabel: int;
+
+    astPointer := 0;
+    currReg := STACK_REGISTERS_START - 1;
+    currLabel := 0;
+
+    PC('s') PC('e') PC('c') PC('t') PC('i') PC('o') PC('n') PC(' ') PC('.') PC('t') PC('e') PC('x') PC('t') PC('\n')
+    INDENT PC('g') PC('l') PC('o') PC('b') PC('a') PC('l') PC(' ') PC('m') PC('a') PC('i') PC('n') PC('\n')
+    PC('\n')
+    INDENT PC('e') PC('x') PC('t') PC('e') PC('r') PC('n') PC(' ') PC('p') PC('r') PC('i') PC('n') PC('t') PC('f') PC('\n')
+    INDENT PC('e') PC('x') PC('t') PC('e') PC('r') PC('n') PC(' ') PC('e') PC('x') PC('i') PC('t') PC('\n')
+    INDENT PC('e') PC('x') PC('t') PC('e') PC('r') PC('n') PC(' ') PC('_') PC('_') PC('i') PC('n') PC('i') PC('t') PC('_') PC('t') PC('i') PC('m') PC('e') PC('\n')
+    INDENT PC('e') PC('x') PC('t') PC('e') PC('r') PC('n') PC(' ') PC('_') PC('t') PC('i') PC('m') PC('e') PC('\n')
+    INDENT PC('e') PC('x') PC('t') PC('e') PC('r') PC('n') PC(' ') PC('_') PC('p') PC('r') PC('i') PC('n') PC('t') PC('i') PC('\n')
+    INDENT PC('e') PC('x') PC('t') PC('e') PC('r') PC('n') PC(' ') PC('_') PC('p') PC('r') PC('i') PC('n') PC('t') PC('c') PC('\n')
+    INDENT PC('e') PC('x') PC('t') PC('e') PC('r') PC('n') PC(' ') PC('_') PC('e') PC('x') PC('i') PC('t') PC('\n')
+    INDENT PC('e') PC('x') PC('t') PC('e') PC('r') PC('n') PC(' ') PC('_') PC('r') PC('e') PC('a') PC('d') PC('i') PC('\n')
+    INDENT PC('e') PC('x') PC('t') PC('e') PC('r') PC('n') PC(' ') PC('_') PC('r') PC('e') PC('a') PC('d') PC('c') PC('\n')
+    PC('\n')
+
+    PC('_') PC('_') PC('a') PC('r') PC('r') PC('a') PC('y') PC('A') PC('c') PC('c') PC('e') PC('s') PC('s') PC('O') PC('u') PC('t') PC('O') PC('f') PC('B') PC('o') PC('u') PC('n') PC('d') PC('s') PC(':') PC('\n')
+    INDENT PC('x') PC('o') PC('r') PC(' ') PC('r') PC('a') PC('x') PC(',') PC(' ') PC('r') PC('a') PC('x') PC('\n')
+    INDENT PC('m') PC('o') PC('v') PC(' ') PC('r') PC('d') PC('i') PC(',') PC(' ') PC('a') PC('r') PC('r') PC('a') PC('y') PC('_') PC('o') PC('o') PC('b') PC('_') PC('e') PC('r') PC('r') PC('o') PC('r') PC('\n')
+    INDENT PC('c') PC('a') PC('l') PC('l') PC(' ') PC('p') PC('r') PC('i') PC('n') PC('t') PC('f') PC('\n')
+    INDENT PC('m') PC('o') PC('v') PC(' ') PC('r') PC('d') PC('i') PC(',') PC(' ') PC('1') PC('\n')
+    INDENT PC('c') PC('a') PC('l') PC('l') PC(' ') PC('e') PC('x') PC('i') PC('t') PC('\n')
+    PC('\n')
+
+    PC('m') PC('a') PC('i') PC('n') PC(':') PC('\n')
+    INDENT PC('p') PC('u') PC('s') PC('h') PC(' ') PC('r') PC('b') PC('p') PC('\n')
+    INDENT PC('m') PC('o') PC('v') PC(' ') PC('r') PC('b') PC('p') PC(',') PC(' ') PC('r') PC('s') PC('p') PC('\n')
+    PC('\n')
+    INDENT PC('c') PC('a') PC('l') PC('l') PC(' ') PC('_') PC('_') PC('i') PC('n') PC('i') PC('t') PC('_') PC('t') PC('i') PC('m') PC('e') PC('\n')
+    INDENT PC('c') PC('a') PC('l') PC('l') PC(' ') PC('_') PC('m') PC('a') PC('i') PC('n') PC('\n')
+    PC('\n');
+    INDENT PC('m') PC('o') PC('v') PC(' ') PC('r') PC('d') PC('i') PC(',') PC(' ') PC('0') PC('\n')
+    INDENT PC('c') PC('a') PC('l') PC('l') PC(' ') PC('e') PC('x') PC('i') PC('t') PC('\n')
+    INDENT PC('p') PC('o') PC('p') PC(' ') PC('r') PC('b') PC('p') PC('\n')
+    INDENT PC('r') PC('e') PC('t') PC('\n')
+    PC('\n');
+
+    codegen_rec(ast, astPointer, symbolTables, 0, symbolTableEntries, keyBuf, currReg, currLabel);
+
+    PC('s') PC('e') PC('c') PC('t') PC('i') PC('o') PC('n') PC(' ') PC('.') PC('d') PC('a') PC('t') PC('a') PC('\n')
+    INDENT PC('a') PC('r') PC('r') PC('a') PC('y') PC('_') PC('o') PC('o') PC('b') PC('_') PC('e') PC('r') PC('r') PC('o') PC('r') PC(':') PC(' ') PC('d') PC('b') PC(' ') PC('"') PC('e') PC('r') PC('r') PC('o') PC('r') 
+            PC(':') PC(' ') PC('a') PC('r') PC('r') PC('a') PC('y') PC(' ') PC('a') PC('c') PC('c') PC('e') PC('s') PC('s') PC(' ') PC('o') PC('u') PC('t') PC(' ') PC('o') PC('f') PC(' ') PC('b') PC('o') PC('u') PC('n') 
+            PC('d') PC('s') PC('"') PC(',') PC('1') PC('0') PC(',') PC('0') PC('\n')
+    PC('\n');
+}
+
 proc main() {
     var input: DataArray;
     var inputLength: int;
@@ -3164,5 +3892,5 @@ proc main() {
 
     var_alloc(ast, symbolTables, symbolTableEntries);
 
-    printc('s'); printc('u'); printc('c'); printc('c'); printc('e'); printc('s'); printc('s'); printc('\n');
+    codegen(ast, symbolTables, symbolTableEntries);
 }
