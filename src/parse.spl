@@ -24,6 +24,7 @@
 #define NODE_WHILE_STMT      21
 
 #define CURR_TOK_V tokens[tokenPointer + 1]
+#define AST_R(t) t := ast[astPointer]; astPointer := astPointer + 1;
 #define AST_W(n) ast[astPointer] := (n); astPointer := astPointer + 1;
 
 #define NODE(type) AST_W(type)

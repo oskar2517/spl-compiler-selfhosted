@@ -1,3 +1,11 @@
+#define NEXT_NODE_TYPE_INDEX astPointer + 2;
+
+#define READ_IDENT(start, length)      \
+    length := ast[astPointer];         \
+    astPointer := astPointer + 1;      \
+    start := astPointer;               \
+    astPointer := astPointer + length; \
+
 proc name_analysis_type_decl(
     ref ast: DataArray, 
     ref astPointer: int, 
@@ -14,14 +22,9 @@ proc name_analysis_type_decl(
     var mapFound: int;
     var mapValue: int;
 
-    identLength := ast[astPointer];
-    astPointer := astPointer + 1;
-    identStart := astPointer;
-    astPointer := astPointer + identLength; // Skip ident data
+    READ_IDENT(identStart, identLength)
 
-    typeIndex := astPointer
-        + 1  // Node type
-        + 1; // Node length
+    typeIndex := NEXT_NODE_TYPE_INDEX;
         
     name_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
 
@@ -44,6 +47,7 @@ proc name_analysis_named_type_expr(
     ref keyBuf: HashMapKeyBuffer
 ) {
     var typeSlot: int;
+    var identStart: int;
     var identLength: int;
     var mapFound: int;
     var mapValue: int;
@@ -51,10 +55,8 @@ proc name_analysis_named_type_expr(
     typeSlot := astPointer; // Save index of slot reserved for type
     astPointer := astPointer + 1; // Skip slot reserved for type
 
-    identLength := ast[astPointer]; // Length of ident
-    astPointer := astPointer + 1; // Skip length of ident
-    hashmap_cpy_key(ast, keyBuf, astPointer, identLength);
-    astPointer := astPointer + identLength; // Skip ident data
+    READ_IDENT(identStart, identLength)
+    hashmap_cpy_key(ast, keyBuf, identStart, identLength);
     symbol_table_lookup(symbolTables, tablePointer, keyBuf, identLength, mapFound, mapValue);
 
     if (mapFound # 1) {
@@ -90,12 +92,9 @@ proc name_analysis_arr_type_expr(
     typeSlot := astPointer; // Save index of slot reserved for type
     astPointer := astPointer + 1; // Skip slot reserved for type
 
-    arrSize := ast[astPointer];
-    astPointer := astPointer + 1;
+    AST_R(arrSize)
 
-    subTypeIndex := astPointer
-        + 1  // Node type
-        + 1; // Node length
+    subTypeIndex := NEXT_NODE_TYPE_INDEX;
 
     name_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf); // Analyze base type
 
@@ -120,14 +119,9 @@ proc name_analysis_var_decl(
     var typeIndex: int;
     var entryStart: int;
 
-    nameLen := ast[astPointer];
-    astPointer := astPointer + 1;
-    nameStart := astPointer;
-    astPointer := astPointer + nameLen;
+    READ_IDENT(nameStart, nameLen)
 
-    typeIndex := astPointer
-        + 1  // Node type
-        + 1; // Node length
+    typeIndex := NEXT_NODE_TYPE_INDEX;
 
     name_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
 
@@ -163,17 +157,11 @@ proc name_analysis_param_decl(
     dataType := astPointer;
     astPointer := astPointer + 1;
 
-    isReference := ast[astPointer];
-    astPointer := astPointer + 1;
+    AST_R(isReference)
 
-    nameLen := ast[astPointer];
-    astPointer := astPointer + 1;
-    nameStart := astPointer;
-    astPointer := astPointer + nameLen;
+    READ_IDENT(nameStart, nameLen)
 
-    typeIndex := astPointer
-        + 1  // Node type
-        + 1; // Node length
+    typeIndex := NEXT_NODE_TYPE_INDEX;
 
     name_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
 
@@ -225,12 +213,9 @@ proc name_analysis_proc_decl(
     paramCounter := 0;
     paramTypesPointer := 1; // first element reserved for parameter count
 
-    procNameLen := ast[astPointer];
-    astPointer := astPointer + 1;
-    procNameStart := astPointer;
-    astPointer := astPointer + procNameLen;
+    READ_IDENT(procNameStart, procNameLen)
 
-    astPointer := astPointer + 1 + 1; // Skip param decl list header and length
+    astPointer := astPointer + 2; // Skip param decl list header and length
     while (ast[astPointer] = NODE_PARAM_DECL) {
         astPointer := astPointer + 2; // Skip param decl header and length
         typeIndex := astPointer;
@@ -246,9 +231,9 @@ proc name_analysis_proc_decl(
         paramTypesPointer := paramTypesPointer + 5;
         paramCounter := paramCounter + 1;
     }
-    paramTypes[0] := paramCounter;
+    paramTypes[0] := paramCounter; // Param types list starts with param count
 
-    astPointer := astPointer + 1 + 1; // Skip var decl list header and length
+    astPointer := astPointer + 2; // Skip var decl list header and length
     while (ast[astPointer] = NODE_VAR_DECL) {
         astPointer := astPointer + 2; // Skip var decl header and length
         name_analysis_var_decl(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
@@ -312,12 +297,9 @@ proc name_analysis_rec(
     var nodeType: int;
     var nodeLength: int;
     var t: int;
-   
-    nodeType := ast[astPointer];
-    astPointer := astPointer + 1;
 
-    nodeLength := ast[astPointer];
-    astPointer := astPointer + 1;
+    AST_R(nodeType)
+    AST_R(nodeLength);
 
     if (nodeType = NODE_TYPE_DECL) {
         name_analysis_type_decl(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
