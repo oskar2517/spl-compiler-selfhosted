@@ -1,0 +1,6 @@
+input.spl
+shadow-1.0-SNAPSHOT-all.jar
+stdlib.o
+spl_compiler
+spl_compiler.o
+spl_compiler.nasm

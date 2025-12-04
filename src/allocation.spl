@@ -1,0 +1,255 @@
+#define CURR_PARAM_IS_REF entries[procEntryIndex + 3 + currParamIndex]
+#define CURR_PARAM_POSITION entries[procEntryIndex + 3 + currParamIndex + 1]
+#define CURR_PARAM_OFFSET entries[procEntryIndex + 3 + currParamIndex + 2]
+#define STACK_LAYOUT_LOCAL_VAR_AREA_SIZE entries[procEntryIndex + 3 + paramCount * 5]
+#define STACK_LAYOUT_ARG_AREA_SIZE entries[procEntryIndex + 3 + paramCount * 5 + 1]
+
+#define STACK_LAYOUT_OUT_AREA_SIZE entries[procEntryIndex + 3 + paramCount * 5 + 2]
+
+proc outgoing_area(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref r: int
+) {
+    var nodeType: int;
+    var nodeLength: int;
+    var t: int;
+    var argumentsSize: int;
+    var paramCount: int;
+    var procNameLen: int;
+    var procNameStart: int;
+    var procEntryFound: int;
+    var procEntryIndex: int;
+   
+    nodeType := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    nodeLength := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    if (nodeType = NODE_CALL_STMT) {
+        procNameLen := ast[astPointer];
+        astPointer := astPointer + 1;
+        procNameStart := astPointer;
+        astPointer := astPointer + procNameLen;
+
+        hashmap_cpy_key(ast, keyBuf, procNameStart, procNameLen);
+        symbol_table_lookup(symbolTables, 0, keyBuf, procNameLen, procEntryFound, procEntryIndex);
+
+        SKIP_NODE // Skip arg list
+
+        argumentsSize := 0;
+        paramCount := entries[procEntryIndex + 2];
+
+        // Note: Calculating actual byte size is not necessary since arrays can only be passed by reference.
+        // Therefore, each parameter must have a byte size of exactly WORD_SIZE since both ints and references are of size WORD_SIZE.
+        argumentsSize := paramCount * WORD_SIZE - 6 * WORD_SIZE;
+
+        if (argumentsSize > r) {
+            r := argumentsSize;
+        }
+    } else if (nodeType = NODE_COMP_STMT) {
+        outgoing_area(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, r); // body  
+    } else if (nodeType = NODE_IF_STMT) {
+        SKIP_NODE // Skip condition
+        outgoing_area(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, r); // then
+        outgoing_area(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, r); // else
+    } else if (nodeType = NODE_WHILE_STMT) {
+        SKIP_NODE // Skip Condition
+        outgoing_area(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, r);
+    } else if (nodeType = NODE_STMT_LIST) {
+        t := astPointer;
+        while (astPointer < t + nodeLength) {
+            outgoing_area(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, r);
+        }
+    } else {
+        astPointer := astPointer + nodeLength; // Skip unhandled nodes
+    }
+}
+
+proc var_alloc_param_decl_list(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    procEntryIndex: int
+) {
+    var paramCount: int;
+    var i: int;
+    var currParamIndex: int;
+    var varEntryIndex: int;
+    var varEntryFound: int;
+    var varNameStart: int;
+    var varNameLen: int;
+
+    paramCount := entries[procEntryIndex + 2];
+
+    astPointer := astPointer + 1 + 1; // Skip param decl list head and length
+
+    i := 0;
+    currParamIndex := 0;
+    while (i < paramCount) {
+        astPointer := astPointer + 4; // Skip head, length, datatype, isReference
+
+        varNameLen := ast[astPointer];
+        astPointer := astPointer + 1;
+        varNameStart := astPointer;
+        astPointer := astPointer + varNameLen;
+
+        hashmap_cpy_key(ast, keyBuf, varNameStart, varNameLen);
+        symbol_table_lookup(symbolTables, tablePointer, keyBuf, varNameLen, varEntryFound, varEntryIndex);
+
+        // Note: Calculating actual byte size is not necessary since arrays can only be passed by reference.
+        // Therefore, each parameter must have a byte size of exactly WORD_SIZE since both ints and references are of size WORD_SIZE.
+        if (i < 6) { // First six arguments are passed by register
+            CURR_PARAM_POSITION := i; // Maps to defined registers
+
+            VAR_ENTRY_POSITION := REG_RBP;
+            VAR_ENTRY_OFFSET := -STACK_LAYOUT_LOCAL_VAR_AREA_SIZE - WORD_SIZE;
+
+            STACK_LAYOUT_LOCAL_VAR_AREA_SIZE := STACK_LAYOUT_LOCAL_VAR_AREA_SIZE + WORD_SIZE;
+        } else {
+            CURR_PARAM_POSITION := REG_RSP;
+            CURR_PARAM_OFFSET := STACK_LAYOUT_ARG_AREA_SIZE;
+
+            VAR_ENTRY_POSITION := REG_RBP;
+            VAR_ENTRY_OFFSET := STACK_LAYOUT_ARG_AREA_SIZE + 2 * WORD_SIZE; // old frame pointer (8) + return address (8)
+
+            STACK_LAYOUT_ARG_AREA_SIZE := STACK_LAYOUT_ARG_AREA_SIZE + WORD_SIZE;
+        }
+
+        SKIP_NODE // Skip type expression
+
+        currParamIndex := currParamIndex + 5; // Skip isReference, position, ref, typeref
+        i := i + 1;
+    }
+}
+
+proc var_alloc_var_decl_list(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    procEntryIndex: int,
+    paramCount: int
+) {
+    var varNameLen: int;
+    var varNameStart: int;
+    var varEntryFound: int;
+    var varEntryIndex: int;
+    var typeSize: int;
+
+    astPointer := astPointer + 2; // Skip var decl list head and length
+
+    while (ast[astPointer] = NODE_VAR_DECL) {
+        astPointer := astPointer + 2; // Skip var decl head and length
+
+        varNameLen := ast[astPointer];
+        astPointer := astPointer + 1;
+        varNameStart := astPointer;
+        astPointer := astPointer + varNameLen;
+
+        SKIP_NODE // Skip type expression
+
+        hashmap_cpy_key(ast, keyBuf, varNameStart, varNameLen);
+        symbol_table_lookup(symbolTables, tablePointer, keyBuf, varNameLen, varEntryFound, varEntryIndex);
+
+        typeSize := 0;
+        calc_type_byte_size(VAR_ENTRY_TYPE_INDEX, entries, typeSize);
+
+        VAR_ENTRY_POSITION := REG_RBP;
+        VAR_ENTRY_OFFSET := -STACK_LAYOUT_LOCAL_VAR_AREA_SIZE - typeSize;
+        STACK_LAYOUT_LOCAL_VAR_AREA_SIZE := STACK_LAYOUT_LOCAL_VAR_AREA_SIZE + typeSize;
+    }
+}
+
+proc var_alloc_proc_decl(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var procNameStart: int;
+    var procNameLen: int;
+    var procEntryIndex: int;
+    var procEntryFound: int;
+    var localTablePointer: int;
+    var outgoingAreaSize: int;
+    var paramCount: int;
+    var origAstPointer: int;
+
+    procNameLen := ast[astPointer];
+    astPointer := astPointer + 1;
+    procNameStart := astPointer;
+    astPointer := astPointer + procNameLen;
+
+    hashmap_cpy_key(ast, keyBuf, procNameStart, procNameLen);
+    symbol_table_lookup(symbolTables, 0, keyBuf, procNameLen, procEntryFound, procEntryIndex);
+
+    paramCount := entries[procEntryIndex + 2];
+
+    localTablePointer := entries[procEntryIndex + 1];
+
+    // NOTE: It should not matter whether parameters or variables are allocated first. I do this to achieve perfect consistency with the host compiler.
+    origAstPointer := astPointer;
+    SKIP_NODE // Skip param decl list
+    var_alloc_var_decl_list(ast, astPointer, symbolTables, localTablePointer, entries, keyBuf, procEntryIndex, paramCount);
+    astPointer := origAstPointer;
+
+    var_alloc_param_decl_list(ast, astPointer, symbolTables, localTablePointer, entries, keyBuf, procEntryIndex);
+    
+    SKIP_NODE // Skip var decl list
+
+    outgoingAreaSize := 0;
+    outgoing_area(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, outgoingAreaSize);
+    STACK_LAYOUT_OUT_AREA_SIZE := outgoingAreaSize;
+}
+
+proc var_alloc_rec(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var nodeType: int;
+    var nodeLength: int;
+    var t: int;
+   
+    nodeType := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    nodeLength := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    if (nodeType = NODE_PROC_DECL) {
+        var_alloc_proc_decl(ast, astPointer, symbolTables, tablePointer, entries, keyBuf);
+    } else if (nodeType = NODE_STMT_LIST) {
+        t := astPointer;
+        while (astPointer < t + nodeLength) {
+            var_alloc_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf);
+        }
+    } else {
+        astPointer := astPointer + nodeLength; // Skip unhandled nodes
+    }
+}
+
+proc var_alloc(ref ast: DataArray, ref symbolTables: SymbolTables, ref symbolTableEntries: DataArray) {
+    var astPointer: int;
+    var keyBuf: HashMapKeyBuffer;
+
+    astPointer := 0;
+
+    var_alloc_rec(ast, astPointer, symbolTables, 0, symbolTableEntries, keyBuf);
+}

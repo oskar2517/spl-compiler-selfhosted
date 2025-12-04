@@ -1,0 +1,108 @@
+#define SPL_TYPE_ARRAY 0
+#define SPL_TYPE_INT   1
+#define SPL_TYPE_BOOL  2
+#define SPL_TYPE_REF   3 // A reference to type stored at another position in the entries array. Used for array sub types
+
+#define SPL_TYPE_INT_INDEX 2 // This is the index at which the int type is stored in the entries array. It is important to update it if the table initialization order changes!!
+#define SPL_TYPE_BOOL_INDEX 0
+
+proc print_type(ref entries: DataArray, ref entryPointer: int) {
+    var head: int;
+    var t: int;
+
+    head := entries[entryPointer];
+
+    entryPointer := entryPointer + 1;
+
+    if (head = SPL_TYPE_INT) {
+        PC('i', 'n', 't');
+    } else if (head = SPL_TYPE_BOOL) {
+        PC('b', 'o', 'o', 'l')
+    } else if (head = SPL_TYPE_ARRAY) {
+        PC('a', 'r', 'r', 'a', 'y', '[')
+        printi(entries[entryPointer]);
+        entryPointer := entryPointer + 1;
+        PC(']', ' ', 'o', 'f', ' ')
+        print_type(entries, entryPointer);   
+    } else if (head = SPL_TYPE_REF) {
+        t := entryPointer;
+        entryPointer := entries[entryPointer];
+        print_type(entries, entryPointer);   
+        entryPointer := t + 1;
+    } else {
+        PC('I', 'n', 't', 'e', 'r', 'n', 'a', 'l', ' ', 'E', 'r', 'r', 'o', 'r', ':', ' ', 'I', 'l', 'l', 'e', 'g', 'a', 'l', ' ', 't', 'y', 'p', 'e', ' ', 'h', 'e', 'a', 'd', '\n')
+        exit(); // ERROR: Illegal type head
+    }
+}
+
+proc print_procedure_type(ref entries: DataArray, ref entryPointer: int) {
+    var i: int;
+    var parameterCount: int;
+    var isReference: int;
+
+    parameterCount := entries[entryPointer];
+    entryPointer := entryPointer + 1;
+    i := 0;
+    while (i < parameterCount) {
+        isReference := entries[entryPointer];
+        entryPointer := entryPointer + 1;
+        entryPointer := entryPointer + 2; // Skip parameter location (register/stack offset)
+
+        if (isReference # 0) {
+            PC('r', 'e', 'f', ' ')
+        }
+
+        print_type(entries, entryPointer);
+
+        i := i + 1;
+
+        if (i < parameterCount) {
+            PC(',', ' ')
+        }
+    }
+}
+
+proc resolve_type_ref(typeIndex: int, ref entries: DataArray, ref r: int) {
+    if (entries[typeIndex] = SPL_TYPE_REF) {
+        resolve_type_ref(entries[typeIndex + 1], entries, r);
+    } else {
+        r := typeIndex;
+    }
+}
+
+proc compare_types(left: int, right: int, ref entries: DataArray) {
+    var leftResolved: int;
+    var rightResolved: int;
+
+    resolve_type_ref(left, entries, leftResolved);
+    resolve_type_ref(right, entries, rightResolved);
+
+    if (leftResolved # rightResolved) {
+        PC('E', 'r', 'r', 'o', 'r', ':', ' ', 'T', 'y', 'p', 'e', ' ', 'm', 'i', 's', 'm', 'a', 't', 'c', 'h', ' ', '(')
+        print_type(entries, leftResolved);
+        PC(',', ' ')
+        print_type(entries, rightResolved);
+        PC(')', '\n')
+        exit(); // SEMANTIC ERROR: Type mismatch
+    }
+}
+
+proc calc_type_byte_size(typeIndex: int, ref entries: DataArray, ref r: int) {
+    var resolvedType: int;
+    var arrSubTypeSize: int;
+    var arrLen: int;
+
+    resolve_type_ref(typeIndex, entries, resolvedType);
+
+    if (entries[resolvedType] = SPL_TYPE_INT) {
+        r := r + WORD_SIZE;
+    } else if (entries[resolvedType] = SPL_TYPE_ARRAY) {
+        arrLen := entries[resolvedType + 1];
+        arrSubTypeSize := 0;
+        calc_type_byte_size(resolvedType + 2, entries, arrSubTypeSize);
+        r := r + arrSubTypeSize * arrLen;
+    } else {
+        PC('I', 'n', 't', 'e', 'r', 'n', 'a', 'l', ' ', 'E', 'r', 'r', 'o', 'r', ':', ' ', 'I', 'l', 'l', 'e', 'g', 'a', 'l', ' ', 't', 'y', 'p', 'e', ' ', 'h', 'e', 'a', 'd', '\n')
+        exit(); // ERROR: Illegal type head
+    }
+}

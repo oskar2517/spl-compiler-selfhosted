@@ -1,0 +1,707 @@
+#define INDENT printc(' '); printc(' '); printc(' '); printc(' ');
+
+#define NEXT_REGISTER currReg := currReg + 1;
+#define PREV_REGISTER currReg := currReg - 1;
+
+#define BRACK(x) PC('[') x PC(']')
+#define QWORD(x) PC('q', 'w', 'o', 'r', 'd', ' ') x
+
+#define PUSH(a) PC('p', 'u', 's', 'h', ' ') a PC('\n')
+
+#define MOV(a, b) PC('m', 'o', 'v', ' ') a PC(',', ' ') b PC('\n')
+#define LEA(a, b) PC('l', 'e', 'a', ' ') a PC(',', ' ') b PC('\n')
+#define ADD(a, b) PC('a', 'd', 'd', ' ') a PC(',', ' ') b PC('\n')
+#define SUB(a, b) PC('s', 'u', 'b', ' ') a PC(',', ' ') b PC('\n')
+#define IMUL(a, b) PC('i', 'm', 'u', 'l', ' ') a PC(',', ' ') b PC('\n')
+#define CQO PC('c', 'q', 'o', '\n')
+#define IDIV(a) PC('i', 'd', 'i', 'v', ' ') a PC('\n')
+#define NEG(a) PC('n', 'e', 'g', ' ') a PC('\n')
+#define CMP(a, b) PC('c', 'm', 'p', ' ') a PC(',', ' ') b PC('\n')
+#define JAE(a) PC('j', 'a', 'e', ' ') a PC('\n')
+#define JNE(a) PC('j', 'n', 'e', ' ') a PC('\n')
+#define JE(a) PC('j', 'e', ' ') a PC('\n')
+#define JGE(a) PC('j', 'g', 'e', ' ') a PC('\n')
+#define JG(a) PC('j', 'g', ' ') a PC('\n')
+#define JLE(a) PC('j', 'l', 'e', ' ') a PC('\n')
+#define JL(a) PC('j', 'l', ' ') a PC('\n')
+#define JMP(a) PC('j', 'm', 'p', ' ') a PC('\n')
+#define CALL(a) PC('c', 'a', 'l', 'l', ' ') a PC('\n')
+#define POP(a) PC('p', 'o', 'p', ' ') a PC('\n')
+#define RET PC('r', 'e', 't', '\n')
+
+#define LABEL(a) print_label(a); PC(':') PC('\n')
+
+#define RBP PC('r', 'b', 'p')
+#define RSP PC('r', 's', 'p')
+#define RBX PC('r', 'b', 'x')
+#define RCX PC('r', 'c', 'x')
+#define RDX PC('r', 'd', 'x')
+#define RSI PC('r', 's', 'i')
+#define RDI PC('r', 'd', 'i')
+#define RAX PC('r', 'a', 'x')
+#define R8  PC('r', '8')
+#define R9  PC('r', '9')
+#define R10 PC('r', '1', '0')
+#define R11 PC('r', '1', '1')
+#define R12 PC('r', '1', '2')
+#define R13 PC('r', '1', '3')
+#define R14 PC('r', '1', '4')
+#define R15 PC('r', '1', '5')
+
+proc stack_align(size: int, ref r: int) {
+    r := size + STACK_ALIGNMENT - 1;
+    r := r / STACK_ALIGNMENT;
+    r := r * STACK_ALIGNMENT;
+}
+
+proc print_register(reg: int) {
+    if (reg = REG_RDI) {
+        RDI
+    } else if (reg = REG_RSI) {
+        RSI
+    } else if (reg = REG_RDX) {
+        RDX
+    } else if (reg = REG_RCX) {
+        RCX
+    } else if (reg = REG_R8) {
+        R8
+    } else if (reg = REG_R9) {
+        R9
+    } else if (reg = REG_RBP) {
+        RBP
+    } else if (reg = REG_RSP) {
+        RSP
+    } else if (reg = REG_RBX) {
+        RBX
+    } else if (reg = REG_R15) {
+        R15
+    } else if (reg = REG_R14) {
+        R14
+    } else if (reg = REG_R13) {
+        R13
+    } else if (reg = REG_R12) {
+        R12
+    } else if (reg = REG_R11) {
+        R11
+    } else if (reg = REG_R10) {
+        R10
+    } else if (reg = REG_RAX) {
+        RAX
+    } else {
+        PC('I', 'n', 't', 'e', 'r', 'n', 'a', 'l', ' ', 'E', 'r', 'r', 'o', 'r', ':', ' ', 'I', 'l', 'l', 'e', 'g', 'a', 'l', ' ', 'r', 'e', 'g', 'i', 's', 't', 'e', 'r', '\n')
+        exit(); // INTERNAL ERROR: Unknown register
+    }
+}
+
+proc print_label(n: int) {
+    PC('L') PI(n)
+}
+
+proc codegen_param_decl_list(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    procEntryIndex: int,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var paramCount: int;
+    var i: int;
+    var currParamIndex: int;
+    var varEntryFound: int;
+    var varEntryIndex: int;
+    var varNameStart: int;
+    var varNameLen: int;
+
+    paramCount := entries[procEntryIndex + 2];
+
+    currParamIndex := 0;
+    i := 0;
+    astPointer := astPointer + 2;
+    while (ast[astPointer] = NODE_PARAM_DECL) {
+        astPointer := astPointer + 4; // Skip head, length, datatype, isReference
+
+        varNameLen := ast[astPointer];
+        astPointer := astPointer + 1;
+        varNameStart := astPointer;
+        astPointer := astPointer + varNameLen;
+
+        SKIP_NODE // Skip type expresssion
+
+        if (i < 6) { // First six arguments are passed in register
+            hashmap_cpy_key(ast, keyBuf, varNameStart, varNameLen);
+            symbol_table_lookup(symbolTables, tablePointer, keyBuf, varNameLen, varEntryFound, varEntryIndex);
+
+            INDENT MOV(BRACK(print_register(VAR_ENTRY_POSITION); PC('+') PI(VAR_ENTRY_OFFSET)), print_register(CURR_PARAM_POSITION);)
+        }
+
+        currParamIndex := currParamIndex + 5;
+        i := i + 1;
+    }
+
+    SKIP_NODE // Skip var decl list
+
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+}
+
+proc codegen_proc_decl(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var procNameStart: int;
+    var procNameLen: int;
+    var procEntryIndex: int;
+    var procEntryFound: int;
+    var alignedStackSize: int;
+    var paramCount: int;
+    var localTablePointer: int;
+
+    procNameLen := ast[astPointer];
+    astPointer := astPointer + 1;
+    procNameStart := astPointer;
+    astPointer := astPointer + procNameLen;
+
+    hashmap_cpy_key(ast, keyBuf, procNameStart, procNameLen);
+    symbol_table_lookup(symbolTables, 0, keyBuf, procNameLen, procEntryFound, procEntryIndex);
+
+    localTablePointer := entries[procEntryIndex + 1];
+    paramCount := entries[procEntryIndex + 2];
+
+    stack_align(STACK_LAYOUT_LOCAL_VAR_AREA_SIZE + STACK_LAYOUT_OUT_AREA_SIZE, alignedStackSize);
+
+    PC('_') array_print(ast, procNameStart, procNameLen); PC(':', '\n')
+    INDENT PC(';', ' ', 'A', 'l', 'l', 'o', 'c', 'a', 't', 'e', ' ', 's', 't', 'a', 'c', 'k', ' ', 'f', 'r', 'a', 'm', 'e', '\n')
+    INDENT PUSH(RBP)
+    INDENT MOV(RBP, RSP)
+    INDENT SUB(RSP, PI(alignedStackSize))
+    PC('\n')
+
+    INDENT PC(';', ' ', 'B', 'a', 'c', 'k', 'u', 'p', ' ', 'c', 'a', 'l', 'l', 'e', 'e', '-', 's', 'a', 'v', 'e', 'd', ' ', 'r', 'e', 'g', 'i', 's', 't', 'e', 'r', 's', '\n')
+    INDENT PUSH(RBX)
+    INDENT PUSH(R12)
+    INDENT PUSH(R13)
+    INDENT PUSH(R14) 
+    INDENT PUSH(R15)
+    PC('\n')
+    INDENT PC(';', ' ', 'A', 'l', 'i', 'g', 'n', ' ', 's', 't', 'a', 'c', 'k', '\n')
+    INDENT SUB(RSP, PI(8))
+    PC('\n')
+
+    codegen_param_decl_list(ast, astPointer, symbolTables, localTablePointer, entries, keyBuf, procEntryIndex, currReg, currLabel);
+
+    PC('\n')
+    INDENT PC(';', ' ', 'R', 'e', 's', 't', 'o', 'r', 'e', ' ', 'c', 'a', 'l', 'l', 'e', 'e', '-', 's', 'a', 'v', 'e', 'd', ' ', 'r', 'e', 'g', 'i', 's', 't', 'e', 'r', 's', '\n')
+    INDENT POP(R15)
+    INDENT POP(R14)
+    INDENT POP(R13)
+    INDENT POP(R12)
+    INDENT POP(RBX)
+    PC('\n')
+    INDENT PC(';', ' ', 'A', 'l', 'i', 'g', 'n', ' ', 's', 't', 'a', 'c', 'k', '\n')
+    INDENT ADD(RSP, PI(8))
+
+    PC('\n')
+    INDENT PC(';', ' ', 'D', 'e', 's', 't', 'r', 'o', 'y', ' ', 's', 't', 'a', 'c', 'k', ' ', 'f', 'r', 'a', 'm', 'e', '\n')
+    INDENT MOV(RSP, RBP)
+    INDENT POP(RBP)
+    INDENT RET
+    PC('\n')
+}
+
+proc codegen_assgn_stmt(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var addressRegister: int;
+    var valueRegister: int;
+
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    addressRegister := currReg;
+
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    valueRegister := currReg;
+
+    PREV_REGISTER
+
+    INDENT MOV(BRACK(print_register(addressRegister);), print_register(valueRegister);)
+
+    PREV_REGISTER
+}
+
+proc codegen_int_lit(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var value: int;
+
+    astPointer := astPointer + 1; // Skip slot for datatype
+    value := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    NEXT_REGISTER
+
+    INDENT MOV(print_register(currReg);, QWORD(PI(value)))
+}
+
+proc codegen_named_var(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var varNameLen: int;
+    var varNameStart: int;
+    var varEntryFound: int;
+    var varEntryIndex: int;
+
+    astPointer := astPointer + 1; // Skip slot for datatype
+
+    varNameLen := ast[astPointer];
+    astPointer := astPointer + 1;
+    varNameStart := astPointer;
+    astPointer := astPointer + varNameLen;
+
+    hashmap_cpy_key(ast, keyBuf, varNameStart, varNameLen);
+    symbol_table_lookup(symbolTables, tablePointer, keyBuf, varNameLen, varEntryFound, varEntryIndex);
+
+    NEXT_REGISTER
+    if (VAR_ENTRY_IS_REFERENCE # 0) {
+        INDENT MOV(print_register(currReg);, BRACK(print_register(VAR_ENTRY_POSITION); PC('+') PI(VAR_ENTRY_OFFSET)))
+    } else {
+        INDENT LEA(print_register(currReg);, BRACK(print_register(VAR_ENTRY_POSITION); PC('+') PI(VAR_ENTRY_OFFSET)))
+    }
+}
+
+proc codegen_bin_expr(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var operator: int;
+
+    astPointer := astPointer + 1; // Skip slot for datatype
+
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel); // left
+
+    operator := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel); // right
+
+    if (operator = TOK_PLUS) {
+        INDENT ADD(print_register(currReg - 1);, print_register(currReg);)
+    } else if (operator = TOK_MINUS) {
+        INDENT SUB(print_register(currReg - 1);, print_register(currReg);)
+    } else if (operator = TOK_ASTERISK) {
+        INDENT IMUL(print_register(currReg - 1);, print_register(currReg);)
+    } else if (operator = TOK_SLASH) {
+        INDENT MOV(RAX, print_register(currReg - 1);)
+        INDENT CQO
+        INDENT IDIV(print_register(currReg);)
+        INDENT MOV(print_register(currReg - 1);, RAX)
+    } else {
+        PC('I', 'n', 't', 'e', 'r', 'n', 'a', 'l', ' ', 'E', 'r', 'r', 'o', 'r', ':', ' ', 'I', 'l', 'l', 'e', 'g', 'a', 'l', ' ', 'b', 'i', 'n', 'a', 'r', 'y', ' ', 'o', 'p', 'e', 'r', 'a', 't', 'o', 'r', '\n')
+        exit(); // INTERNAL ERROR: Unknown binary operator
+    }
+
+    PREV_REGISTER
+}
+
+proc codegen_var_expr(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    astPointer := astPointer + 1; // Skip slot for datatype
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    INDENT MOV(print_register(currReg);, BRACK(print_register(currReg);))
+}
+
+proc codegen_una_expr(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var operator: int;
+
+    astPointer := astPointer + 1; // Skip slot for datatype
+
+    operator := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    if (operator = TOK_MINUS) {
+        codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+        INDENT NEG(print_register(currReg);)
+    } else {
+        PC('I', 'n', 't', 'e', 'r', 'n', 'a', 'l', ' ', 'E', 'r', 'r', 'o', 'r', ':', ' ', 'I', 'l', 'l', 'e', 'g', 'a', 'l', ' ', 'u', 'n', 'a', 'r', 'y', ' ', 'o', 'p', 'e', 'r', 'a', 't', 'o', 'r', '\n')
+        exit(); // INTERNAL ERROR: Unknown unary operator
+    }
+}
+
+proc codegen_arr_acc(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var typeIndex: int;
+    var arrSize: int;
+    var resolvedTypeIndex: int;
+    var baseTypeIndex: int;
+    var baseTypeSize: int;
+
+    astPointer := astPointer + 1; // skip type slot
+    typeIndex := ast[astPointer + 2];
+
+    resolve_type_ref(typeIndex, entries, resolvedTypeIndex);
+
+    arrSize := entries[resolvedTypeIndex + 1];
+    baseTypeIndex := resolvedTypeIndex + 2;
+
+    baseTypeSize := 0;
+    calc_type_byte_size(baseTypeIndex, entries, baseTypeSize);
+
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel); // array
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel); // index
+
+    INDENT CMP(print_register(currReg);, PI(0))
+    INDENT JL(PC('_', '_', 'a', 'r', 'r', 'a', 'y', 'A', 'c', 'c', 'e', 's', 's', 'O', 'u', 't', 'O', 'f', 'B', 'o', 'u', 'n', 'd', 's'))
+    INDENT CMP(print_register(currReg);, PI(arrSize));
+    INDENT JAE(PC('_', '_', 'a', 'r', 'r', 'a', 'y', 'A', 'c', 'c', 'e', 's', 's', 'O', 'u', 't', 'O', 'f', 'B', 'o', 'u', 'n', 'd', 's'))
+
+    INDENT IMUL(print_register(currReg);, PI(baseTypeSize))
+    INDENT ADD(print_register(currReg - 1);, print_register(currReg);)
+
+    PREV_REGISTER
+}
+
+proc codegen_gen_cond(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int,
+    label: int
+) {
+    var operator: int;
+
+    astPointer := astPointer + 3; // Skip node type, node length and slot for datatype
+
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel); // left
+
+    operator := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel); // right
+
+    INDENT CMP(print_register(currReg - 1);, print_register(currReg);)
+
+    if (operator = TOK_EQUAL) {
+        INDENT JNE(print_label(label);)
+    } else if (operator = TOK_HASH) {
+        INDENT JE(print_label(label);)
+    } else if (operator = TOK_LT) {
+        INDENT JGE(print_label(label);)
+    } else if (operator = TOK_LTE) {
+        INDENT JG(print_label(label);)
+    } else if (operator = TOK_GT) {
+        INDENT JLE(print_label(label);)
+    } else if (operator = TOK_GTE) {
+        INDENT JL(print_label(label);)
+    } else {
+        PC('I', 'n', 't', 'e', 'r', 'n', 'a', 'l', ' ', 'E', 'r', 'r', 'o', 'r', ':', ' ', 'I', 'l', 'l', 'e', 'g', 'a', 'l', ' ', 'b', 'i', 'n', 'a', 'r', 'y', ' ', 'b', 'o', 'o', 'l', 'e', 'a', 'n', ' ', 'o', 'p', 'e', 'r', 'a', 't', 'o', 'r', '\n')
+        exit(); // INTERNAL ERROR: Unknown binary boolean operator
+    }
+
+    PREV_REGISTER
+    PREV_REGISTER
+}
+
+proc codegen_if_stmt(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var label0: int;
+    var label1: int;
+
+    label0 := currLabel;
+    currLabel := currLabel + 1;
+
+    codegen_gen_cond(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel, label0);
+
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel); // then part
+
+    if (ast[astPointer] = NODE_EMPTY_STMT) {
+        SKIP_NODE // Skip then part
+
+        INDENT LABEL(label0)
+    } else {  
+        label1 := currLabel;
+        currLabel := currLabel + 1;
+
+        INDENT JMP(print_label(label1);)
+
+        INDENT LABEL(label0)
+        codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel); // else part
+        INDENT LABEL(label1)
+    }
+}
+
+proc codegen_while_stmt(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var label0: int;
+    var label1: int;
+
+    label0 := currLabel;
+    currLabel := currLabel + 1;
+
+    label1 := currLabel;
+    currLabel := currLabel + 1;
+
+    INDENT LABEL(label0)
+
+    codegen_gen_cond(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel, label1);
+
+    codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel); // body
+
+    INDENT JMP(print_label(label0);)
+    INDENT LABEL(label1)    
+}
+
+proc codegen_call_stmt(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var procNameStart: int;
+    var procNameLen: int;
+    var procEntryIndex: int;
+    var procEntryFound: int;
+    var paramCount: int;
+    var i: int;
+    var j: int;
+    var origAstPointer: int;
+    var currParamIndex: int;
+
+    procNameLen := ast[astPointer];
+    astPointer := astPointer + 1;
+    procNameStart := astPointer;
+    astPointer := astPointer + procNameLen;
+
+    hashmap_cpy_key(ast, keyBuf, procNameStart, procNameLen);
+    symbol_table_lookup(symbolTables, 0, keyBuf, procNameLen, procEntryFound, procEntryIndex);
+
+    paramCount := entries[procEntryIndex + 2];
+
+    astPointer := astPointer + 2; // Skip arg list head and length
+
+    origAstPointer := astPointer;
+
+    i := 0;
+    while (i < paramCount) {
+        j := 0;
+        while (j < paramCount - i - 1) {
+            SKIP_NODE
+
+            j := j + 1;
+        }
+
+        currParamIndex := j * 5;
+
+
+        if (CURR_PARAM_IS_REF # 0) {
+            astPointer := astPointer + 3; // Skip var expr head, length, and data type slot
+            codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);      
+        } else {
+            codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+        }
+
+        if (CURR_PARAM_POSITION = REG_RSP) {
+            INDENT MOV(BRACK(print_register(CURR_PARAM_POSITION); PC('+') PI(CURR_PARAM_OFFSET)), print_register(currReg);)
+        } else {
+            INDENT MOV(print_register(CURR_PARAM_POSITION);, print_register(currReg);)
+        } 
+
+        PREV_REGISTER
+
+        astPointer := origAstPointer;
+
+        i := i + 1;
+    }
+
+    astPointer := astPointer - 2; // return to start of arg list
+    SKIP_NODE
+
+    INDENT CALL(PC('_') array_print(ast, procNameStart, procNameLen);)
+}
+
+proc codegen_rec(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray, 
+    ref keyBuf: HashMapKeyBuffer,
+    ref currReg: int,
+    ref currLabel: int
+) {
+    var nodeType: int;
+    var nodeLength: int;
+    var t: int;
+   
+    nodeType := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    nodeLength := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    if (nodeType = NODE_PROC_DECL) {
+        codegen_proc_decl(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = NODE_CALL_STMT) {
+        codegen_call_stmt(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);       
+    } else if (nodeType = NODE_WHILE_STMT) {
+        codegen_while_stmt(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = NODE_IF_STMT) {
+        codegen_if_stmt(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = NODE_COMP_STMT) {
+        codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = NODE_ARR_ACC) {
+         codegen_arr_acc(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);      
+    } else if (nodeType = NODE_UNA_EXPR) {
+        codegen_una_expr(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = NODE_VAR_EXPR) {
+        codegen_var_expr(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = NODE_BIN_EXPR) {
+        codegen_bin_expr(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = NODE_NAMED_VAR) {
+        codegen_named_var(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = NODE_ASSGN_STMT) {
+        codegen_assgn_stmt(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = NODE_INT_LIT) {
+        codegen_int_lit(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+    } else if (nodeType = NODE_STMT_LIST) {
+        t := astPointer;
+        while (astPointer < t + nodeLength) {
+            codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
+        }
+    } else {
+        astPointer := astPointer + nodeLength; // Skip unhandled nodes
+    }
+}
+
+proc codegen(ref ast: DataArray, ref symbolTables: SymbolTables, ref symbolTableEntries: DataArray) {
+    var astPointer: int;
+    var keyBuf: HashMapKeyBuffer;
+    var currReg: int;
+    var currLabel: int;
+
+    astPointer := 0;
+    currReg := STACK_REGISTERS_START - 1;
+    currLabel := 0;
+
+    PC('s', 'e', 'c', 't', 'i', 'o', 'n', ' ', '.', 't', 'e', 'x', 't', '\n')
+    INDENT PC('g', 'l', 'o', 'b', 'a', 'l', ' ', 'm', 'a', 'i', 'n', '\n')
+    PC('\n')
+    INDENT PC('e', 'x', 't', 'e', 'r', 'n', ' ', 'p', 'r', 'i', 'n', 't', 'f', '\n')
+    INDENT PC('e', 'x', 't', 'e', 'r', 'n', ' ', 'e', 'x', 'i', 't', '\n')
+    INDENT PC('e', 'x', 't', 'e', 'r', 'n', ' ', '_', '_', 'i', 'n', 'i', 't', '_', 't', 'i', 'm', 'e', '\n')
+    INDENT PC('e', 'x', 't', 'e', 'r', 'n', ' ', '_', 'e', 'x', 'i', 't', '\n')
+    INDENT PC('e', 'x', 't', 'e', 'r', 'n', ' ', '_', 'p', 'r', 'i', 'n', 't', 'c', '\n')
+    INDENT PC('e', 'x', 't', 'e', 'r', 'n', ' ', '_', 'p', 'r', 'i', 'n', 't', 'i', '\n')
+    INDENT PC('e', 'x', 't', 'e', 'r', 'n', ' ', '_', 'r', 'e', 'a', 'd', 'i', '\n')
+    INDENT PC('e', 'x', 't', 'e', 'r', 'n', ' ', '_', 'r', 'e', 'a', 'd', 'c', '\n')
+    INDENT PC('e', 'x', 't', 'e', 'r', 'n', ' ', '_', 't', 'i', 'm', 'e', '\n')
+    PC('\n')
+
+    PC('_', '_', 'a', 'r', 'r', 'a', 'y', 'A', 'c', 'c', 'e', 's', 's', 'O', 'u', 't', 'O', 'f', 'B', 'o', 'u', 'n', 'd', 's', ':', '\n')
+    INDENT PC('x', 'o', 'r', ' ', 'r', 'a', 'x', ',', ' ', 'r', 'a', 'x', '\n')
+    INDENT PC('m', 'o', 'v', ' ', 'r', 'd', 'i', ',', ' ', 'a', 'r', 'r', 'a', 'y', '_', 'o', 'o', 'b', '_', 'e', 'r', 'r', 'o', 'r', '\n')
+    INDENT PC('c', 'a', 'l', 'l', ' ', 'p', 'r', 'i', 'n', 't', 'f', '\n')
+    INDENT PC('m', 'o', 'v', ' ', 'r', 'd', 'i', ',', ' ', '1', '\n')
+    INDENT PC('c', 'a', 'l', 'l', ' ', 'e', 'x', 'i', 't', '\n')
+    PC('\n')
+
+    PC('m', 'a', 'i', 'n', ':', '\n')
+    INDENT PC('p', 'u', 's', 'h', ' ', 'r', 'b', 'p', '\n')
+    INDENT PC('m', 'o', 'v', ' ', 'r', 'b', 'p', ',', ' ', 'r', 's', 'p', '\n')
+    PC('\n')
+    INDENT PC('c', 'a', 'l', 'l', ' ', '_', '_', 'i', 'n', 'i', 't', '_', 't', 'i', 'm', 'e', '\n')
+    INDENT PC('c', 'a', 'l', 'l', ' ', '_', 'm', 'a', 'i', 'n', '\n')
+    PC('\n');
+    INDENT PC('m', 'o', 'v', ' ', 'r', 'd', 'i', ',', ' ', '0', '\n')
+    INDENT PC('c', 'a', 'l', 'l', ' ', 'e', 'x', 'i', 't', '\n')
+    INDENT PC('p', 'o', 'p', ' ', 'r', 'b', 'p', '\n')
+    INDENT PC('r', 'e', 't', '\n')
+    PC('\n');
+
+    codegen_rec(ast, astPointer, symbolTables, 0, symbolTableEntries, keyBuf, currReg, currLabel);
+
+    PC('s', 'e', 'c', 't', 'i', 'o', 'n', ' ', '.', 'd', 'a', 't', 'a', '\n')
+    INDENT PC('a', 'r', 'r', 'a', 'y', '_', 'o', 'o', 'b', '_', 'e', 'r', 'r', 'o', 'r', ':', ' ', 'd', 'b', ' ', '"', 'e', 'r', 'r', 'o', 'r', ':', ' ', 'a', 'r', 'r', 'a', 'y', ' ', 'a', 'c', 'c', 'e', 's', 's', ' ', 'o', 'u', 't', ' ', 'o', 'f', ' ', 'b', 'o', 'u', 'n', 'd', 's', '"', ',', '1', '0', ',', '0', '\n')
+}

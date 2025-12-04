@@ -1,0 +1,275 @@
+
+#define GLOBAL_TABLE symbolTables[0]
+#define CURRENT_TABLE symbolTables[tablePointer]
+
+#define SYM_TAB_ENTRY_PROC 0
+#define SYM_TAB_ENTRY_TYPE 1
+#define SYM_TAB_ENTRY_VAR  2
+
+#define VAR_ENTRY_POSITION entries[varEntryIndex + 4]
+#define VAR_ENTRY_OFFSET entries[varEntryIndex + 5]
+#define VAR_ENTRY_IS_REFERENCE entries[varEntryIndex + 1]
+#define VAR_ENTRY_TYPE_INDEX varEntryIndex + 2
+
+#define ENTRIES_W(v) entries[entryPointer] := v; entryPointer := entryPointer + 1;
+
+type SymbolTables = array[MAX_SYMBOL_TABLES] of HashMap;
+
+proc symbol_table_lookup(
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref keyBuf: HashMapKeyBuffer, 
+    keyLen: int, 
+    ref found: int, 
+    ref result: int
+) {
+    hashmap_get_str(CURRENT_TABLE, keyBuf, keyLen, found, result);
+
+    if (found # 1) {
+          hashmap_get_str(GLOBAL_TABLE, keyBuf, keyLen, found, result);  
+    }
+}
+
+proc symbol_table_enter(ref table: HashMap, ref keyBuf: HashMapKeyBuffer, keyLen: int, value: int) {
+    var found: int;
+    var result: int;
+
+
+    hashmap_get_str(table, keyBuf, keyLen, found, result);
+
+    if (found # 0) {
+        PC('E', 'r', 'r', 'o', 'r', ':', ' ', 'S', 'y', 'm', 'b', 'o', 'l', ' ', 'a', 'l', 'r', 'e', 'a', 'd', 'y', ' ', 'd', 'e', 'c', 'l', 'a', 'r', 'e', 'd', ' ', '(')
+        hash_map_print_key(keyBuf, keyLen);
+        PC(')', '\n')
+        exit(); // ERROR: Symbol already declared
+    }
+
+    hashmap_put_str(table, keyBuf, keyLen, value);
+}
+
+proc init_global_table(ref table: HashMap, headless: int, ref entries: DataArray, ref entryPointer: int) {
+    var keyBuf: HashMapKeyBuffer;
+
+    // bool - has to be written to entries table for semantic analysis
+    ENTRIES_W(SPL_TYPE_BOOL)
+
+    // int
+    keyBuf[0] := 'i';
+    keyBuf[1] := 'n';
+    keyBuf[2] := 't';
+
+    hashmap_put_str(table, keyBuf, 3, entryPointer);
+
+    ENTRIES_W(SYM_TAB_ENTRY_TYPE)
+    ENTRIES_W(SPL_TYPE_INT)
+
+    // printi(i: int)
+    keyBuf[0] := 'p';
+    keyBuf[1] := 'r';
+    keyBuf[2] := 'i';
+    keyBuf[3] := 'n';
+    keyBuf[4] := 't';
+    keyBuf[5] := 'i';
+
+    hashmap_put_str(table, keyBuf, 6, entryPointer);  
+
+    ENTRIES_W(SYM_TAB_ENTRY_PROC)
+    ENTRIES_W(-1) // Symbol table of procedure (-1 for builtin)
+    ENTRIES_W(1) // One parameter
+    ENTRIES_W(0) // Parameter is not reference
+    ENTRIES_W(REG_RDI) // Position of parameter 1
+    ENTRIES_W(0) // Offset is zero for parameters passed by register
+    ENTRIES_W(SPL_TYPE_REF)
+    ENTRIES_W(SPL_TYPE_INT_INDEX)
+    ENTRIES_W(0) // Local Variable Area Size
+    ENTRIES_W(0) // Argument Area Size
+    ENTRIES_W(0) // Outgoing Area Size
+
+    // printc(i: int)
+    keyBuf[0] := 'p';
+    keyBuf[1] := 'r';
+    keyBuf[2] := 'i';
+    keyBuf[3] := 'n';
+    keyBuf[4] := 't';
+    keyBuf[5] := 'c';
+
+    hashmap_put_str(table, keyBuf, 6, entryPointer);  
+
+    ENTRIES_W(SYM_TAB_ENTRY_PROC)
+    ENTRIES_W(-1) // Symbol table of procedure (-1 for builtin)
+    ENTRIES_W(1) // One parameter
+    ENTRIES_W(0) // Parameter is not reference
+    ENTRIES_W(REG_RDI) // Position of parameter 1
+    ENTRIES_W(0) // Offset is zero for parameters passed by register
+    ENTRIES_W(SPL_TYPE_REF)
+    ENTRIES_W(SPL_TYPE_INT_INDEX)
+    ENTRIES_W(0) // Local Variable Area Size
+    ENTRIES_W(0) // Argument Area Size
+    ENTRIES_W(0) // Outgoing Area Size
+
+    // readi(ref i: int)
+    keyBuf[0] := 'r';
+    keyBuf[1] := 'e';
+    keyBuf[2] := 'a';
+    keyBuf[3] := 'd';
+    keyBuf[4] := 'i';
+
+    hashmap_put_str(table, keyBuf, 5, entryPointer);  
+
+    ENTRIES_W(SYM_TAB_ENTRY_PROC)
+    ENTRIES_W(-1) // Symbol table of procedure (-1 for builtin)
+    ENTRIES_W(1) // One parameter
+    ENTRIES_W(1) // Parameter IS reference
+    ENTRIES_W(REG_RDI) // Position of parameter 1
+    ENTRIES_W(0) // Offset is zero for parameters passed by register
+    ENTRIES_W(SPL_TYPE_REF)
+    ENTRIES_W(SPL_TYPE_INT_INDEX)
+    ENTRIES_W(0) // Local Variable Area Size
+    ENTRIES_W(0) // Argument Area Size
+    ENTRIES_W(0) // Outgoing Area Size
+
+    // readc(ref i: int)
+    keyBuf[0] := 'r';
+    keyBuf[1] := 'e';
+    keyBuf[2] := 'a';
+    keyBuf[3] := 'd';
+    keyBuf[4] := 'c';
+
+    hashmap_put_str(table, keyBuf, 5, entryPointer);  
+
+    ENTRIES_W(SYM_TAB_ENTRY_PROC)
+    ENTRIES_W(-1) // Symbol table of procedure (-1 for builtin)
+    ENTRIES_W(1) // One parameter
+    ENTRIES_W(1) // Parameter IS reference
+    ENTRIES_W(REG_RDI) // Position of parameter 1
+    ENTRIES_W(0) // Offset is zero for parameters passed by register
+    ENTRIES_W(SPL_TYPE_REF)
+    ENTRIES_W(SPL_TYPE_INT_INDEX)
+    ENTRIES_W(0) // Local Variable Area Size
+    ENTRIES_W(0) // Argument Area Size
+    ENTRIES_W(0) // Outgoing Area Size
+
+    // exit()
+    keyBuf[0] := 'e';
+    keyBuf[1] := 'x';
+    keyBuf[2] := 'i';
+    keyBuf[3] := 't';
+
+    hashmap_put_str(table, keyBuf, 4, entryPointer);  
+
+    ENTRIES_W(SYM_TAB_ENTRY_PROC)
+    ENTRIES_W(-1) // Symbol table of procedure (-1 for builtin)
+    ENTRIES_W(0) // No parameters
+    ENTRIES_W(0) // Local Variable Area Size
+    ENTRIES_W(0) // Argument Area Size
+    ENTRIES_W(0) // Outgoing Area Size
+
+    // time(ref i: int)
+    keyBuf[0] := 't';
+    keyBuf[1] := 'i';
+    keyBuf[2] := 'm';
+    keyBuf[3] := 'e';
+
+    hashmap_put_str(table, keyBuf, 4, entryPointer);  
+
+    ENTRIES_W(SYM_TAB_ENTRY_PROC)
+    ENTRIES_W(-1) // Symbol table of procedure (-1 for builtin)
+    ENTRIES_W(1) // One parameter
+    ENTRIES_W(1) // Parameter IS reference
+    ENTRIES_W(REG_RDI) // Position of parameter 1
+    ENTRIES_W(0) // Offset is zero for parameters passed by register
+    ENTRIES_W(SPL_TYPE_REF)
+    ENTRIES_W(SPL_TYPE_INT_INDEX)
+    ENTRIES_W(0) // Local Variable Area Size
+    ENTRIES_W(0) // Argument Area Size
+    ENTRIES_W(0) // Outgoing Area Size
+}
+
+proc print_table(ref symbolTable: HashMap, ref entries: DataArray) {
+    var i: int;
+    var start: int;
+    var len: int;
+    var j: int;
+    var c: int;
+    var valueFound: int;
+    var entryPointer: int;
+    var keyBuf: HashMapKeyBuffer;
+    var isReference: int;
+
+    i := 0;
+    while (i < HASHMAP_SIZE) {
+        if (HASH_USED(symbolTable)[i] # 0) {
+            start := HASH_KEY_START(symbolTable)[i];
+            len := HASH_KEY_LEN(symbolTable)[i];
+
+            j := 0;
+            while (j < len) {
+                c := HASH_POOL(symbolTable)[start + j + 1];
+                printc(c);
+                keyBuf[j] := c;
+
+                j := j + 1;
+            }
+
+            PC(' ', '-', '-', '>', ' ')
+
+            hashmap_get_str(symbolTable, keyBuf, j, valueFound, entryPointer);
+
+            if (entries[entryPointer] = SYM_TAB_ENTRY_TYPE) {
+                entryPointer := entryPointer + 1;
+                PC('t', 'y', 'p', 'e', ':', ' ')
+                print_type(entries, entryPointer);
+            } else if (entries[entryPointer] = SYM_TAB_ENTRY_PROC) {
+                entryPointer := entryPointer + 1;
+                entryPointer := entryPointer + 1; // Skip symbol table
+                PC('p', 'r', 'o', 'c', ':', ' ', '(')
+                print_procedure_type(entries, entryPointer);
+                printc(')');
+                entryPointer := entryPointer + 3; // Skip stack layout (local variable area size, argument area size, outgoing area size)
+            } else if (entries[entryPointer] = SYM_TAB_ENTRY_VAR) {
+                entryPointer := entryPointer + 1;
+                isReference := entries[entryPointer];
+                entryPointer := entryPointer + 1;
+                PC('v', 'a', 'r', ':', ' ')
+                if (isReference # 0) {
+                    PC('r', 'e', 'f', ' ')
+                }
+                print_type(entries, entryPointer);
+                entryPointer := entryPointer + 2; // Skip variable position (register/stack offset)
+            } else {
+                PC('I', 'n', 't', 'e', 'r', 'n', 'a', 'l', ' ', 'E', 'r', 'r', 'o', 'r', ':', ' ', 'I', 'l', 'l', 'e', 'g', 'a', 'l', ' ', 'e', 'n', 't', 'r', 'y', ' ', 't', 'y', 'p', 'e', ' ', 'h', 'e', 'a', 'd', '\n')
+                exit(); // INTERNAL ERROR: Unexpected type
+            }
+
+            printc('\n');
+        }
+        i := i + 1;
+    }
+}
+
+proc print_tables(ref symbolTables: SymbolTables, ref entries: DataArray, count: int) {
+    var i: int;
+
+    i := 0;
+
+    while (i < count) {
+        PC('t', 'a', 'b', 'l', 'e', ' ')
+        printi(i);
+        printc('\n');
+        print_table(symbolTables[i], entries);
+        printc('\n');
+
+        i := i + 1;
+    }
+}
+
+proc init_table_maps(ref symbolTables: SymbolTables) {
+    var i: int;
+
+    i := 0;
+    while (i < MAX_SYMBOL_TABLES) {
+        hashmap_init(symbolTables[i]);
+
+        i := i + 1;
+    }
+}

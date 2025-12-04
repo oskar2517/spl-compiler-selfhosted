@@ -1,0 +1,23 @@
+proc array_cpy(ref source: DataArray, ref target: DataArray, start: int, length: int, startOffset: int) {
+    var i: int;
+
+    i := 0;
+
+    while (i < length) {
+        target[i + startOffset] := source[start + i];
+
+        i := i + 1;
+    }
+}
+
+proc array_print(ref source: DataArray, start: int, length: int) {
+    var i: int;
+
+    i := 0;
+
+    while (i < length) {
+        printc(source[start + i]);
+
+        i := i + 1;
+    }
+}

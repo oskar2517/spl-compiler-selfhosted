@@ -1,0 +1,436 @@
+proc semantic_analysis_proc_decl(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var procNameStart: int;
+    var procNameLen: int;
+    var procEntryIndex: int;
+    var procEntryFound: int;
+    var localTablePointer: int;
+
+    procNameLen := ast[astPointer];
+    astPointer := astPointer + 1;
+    procNameStart := astPointer;
+    astPointer := astPointer + procNameLen;
+
+    hashmap_cpy_key(ast, keyBuf, procNameStart, procNameLen);
+    symbol_table_lookup(symbolTables, 0, keyBuf, procNameLen, procEntryFound, procEntryIndex);
+
+    localTablePointer := entries[procEntryIndex + 1]; // Type at procEntryIndex is ENTRY_PROC, then follows table pointer
+
+    SKIP_NODE // Skip param decl list
+    SKIP_NODE // Skip var decl 
+    
+    semantic_analysis_rec(ast, astPointer, symbolTables, localTablePointer, entries, entryPointer, keyBuf);
+}
+
+proc semantic_analysis_assgn_stmt(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var targetTypeIndex: int;
+    var valueTypeIndex: int;
+
+    targetTypeIndex := astPointer + 1 + 1; 
+    semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf); // Assignment target
+
+    valueTypeIndex := astPointer + 1 + 1;
+    semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf); // Value
+    
+    compare_types(ast[targetTypeIndex], ast[valueTypeIndex], entries); 
+    compare_types(ast[valueTypeIndex], SPL_TYPE_INT_INDEX, entries);
+}
+
+proc semantic_analysis_una_expr(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var thisTypeIndex: int;
+    var operator: int;
+    var operandType: int;
+
+    thisTypeIndex := astPointer;
+    astPointer := astPointer + 1;
+
+    operator := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    operandType := astPointer + 1 + 1;
+
+    semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+
+    compare_types(ast[operandType], SPL_TYPE_INT_INDEX, entries);
+
+    ast[thisTypeIndex] := ast[operandType];
+}
+
+proc semantic_analysis_named_var(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var nameStart: int;
+    var nameLen: int;
+    var entryFound: int;
+    var entryIndex: int;
+    var typeIndex: int;
+
+    typeIndex := astPointer;
+    astPointer := astPointer + 1;
+
+    nameLen := ast[astPointer];
+    astPointer := astPointer + 1;
+    nameStart := astPointer;
+    astPointer := astPointer + nameLen;
+
+    hashmap_cpy_key(ast, keyBuf, nameStart, nameLen);
+    symbol_table_lookup(symbolTables, tablePointer, keyBuf, nameLen, entryFound, entryIndex);
+
+    if (entryFound # 1) {
+        PC('E', 'r', 'r', 'o', 'r', ':', ' ', 'V', 'a', 'r', 'i', 'a', 'b', 'l', 'e', ' ', 'u', 'n', 'd', 'e', 'f', 'i', 'n', 'e', 'd', ' ', '(')
+        hash_map_print_key(keyBuf, nameLen);
+        PC(')', '\n')
+        exit(); // SEMANTIC ERROR: Variable undefined
+    }
+
+    if (entries[entryIndex] # SYM_TAB_ENTRY_VAR) {
+        PC('E', 'r', 'r', 'o', 'r', ':', ' ', 'N', 'o', 't', ' ', 'a', ' ', 'v', 'a', 'r', 'i', 'a', 'b', 'l', 'e', ' ', '(')
+        hash_map_print_key(keyBuf, nameLen);
+        PC(')', '\n')
+        exit(); // SEMANTIC ERROR: Not a variable
+    }
+
+    ast[typeIndex] := entryIndex + 2; // +0 is SYM_TAB_ENTRY_VAR, +1 is whether reference, +2 is actual type
+}
+
+proc semantic_analysis_int_lit(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    ast[astPointer] := SPL_TYPE_INT_INDEX;
+    astPointer := astPointer + 1 + 1; // Skip type slot and int value
+}
+
+proc semantic_analysis_arr_acc(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var thisTypeIndex: int;
+    var arrayTypeIndex: int;
+    var indexTypeIndex: int;
+    var resolvedArrayTypeIndex: int;
+
+    thisTypeIndex := astPointer;
+    astPointer := astPointer + 1;
+    
+    arrayTypeIndex := astPointer + 1 + 1;
+    semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+
+    resolve_type_ref(ast[arrayTypeIndex], entries, resolvedArrayTypeIndex);
+
+    if (entries[resolvedArrayTypeIndex] # SPL_TYPE_ARRAY) {
+        PC('E', 'r', 'r', 'o', 'r', ':', ' ', 'I', 'n', 'd', 'e', 'x', 'i', 'n', 'g', ' ', 'n', 'o', 'n', '-', 'a', 'r', 'r', 'a', 'y', '\n')
+        exit(); // SEMANTIC ERROR: Indexing non-array
+    }
+
+    ast[thisTypeIndex] := resolvedArrayTypeIndex + 2; // Base type is at +2, +1 is array size
+
+    indexTypeIndex := astPointer + 1 + 1;
+    semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    
+    compare_types(ast[indexTypeIndex], SPL_TYPE_INT_INDEX, entries);
+}
+
+proc semantic_analysis_bin_expr(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var thisTypeIndex: int;
+    var leftTypeIndex: int;
+    var rightTypeIndex: int;
+    var operator: int;
+
+    thisTypeIndex := astPointer;
+    astPointer := astPointer + 1;
+    
+    leftTypeIndex := astPointer + 1 + 1;
+    semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    
+    operator := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    rightTypeIndex := astPointer + 1 + 1;
+    semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+
+    compare_types(ast[leftTypeIndex], SPL_TYPE_INT_INDEX, entries);
+    compare_types(ast[rightTypeIndex], SPL_TYPE_INT_INDEX, entries);
+
+    if (operator = TOK_PLUS) {
+        ast[thisTypeIndex] := SPL_TYPE_INT_INDEX;
+    } else if (operator = TOK_MINUS) {
+        ast[thisTypeIndex] := SPL_TYPE_INT_INDEX;
+    } else if (operator = TOK_ASTERISK) {
+        ast[thisTypeIndex] := SPL_TYPE_INT_INDEX;
+    } else if (operator = TOK_SLASH) {
+        ast[thisTypeIndex] := SPL_TYPE_INT_INDEX;
+    } else if (operator = TOK_LT) {
+        ast[thisTypeIndex] := SPL_TYPE_BOOL_INDEX;
+    } else if (operator = TOK_LTE) {
+        ast[thisTypeIndex] := SPL_TYPE_BOOL_INDEX;
+    } else if (operator = TOK_GT) {
+        ast[thisTypeIndex] := SPL_TYPE_BOOL_INDEX;
+    } else if (operator = TOK_GTE) {
+        ast[thisTypeIndex] := SPL_TYPE_BOOL_INDEX;
+    } else if (operator = TOK_EQUAL) {
+        ast[thisTypeIndex] := SPL_TYPE_BOOL_INDEX;
+    } else if (operator = TOK_HASH) {
+        ast[thisTypeIndex] := SPL_TYPE_BOOL_INDEX;
+    } else {
+        PC('I', 'n', 't', 'e', 'r', 'n', 'a', 'l', ' ', 'E', 'r', 'r', 'o', 'r', ':', ' ', 'I', 'l', 'l', 'e', 'g', 'a', 'l', ' ', 'o', 'p', 'e', 'r', 'a', 't', 'o', 'r', '\n')
+        exit(); // INTERNAL ERROR: Unknown operator
+    }
+}
+
+proc semantic_analysis_if_stmt(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var conditionTypeIndex: int;
+
+    conditionTypeIndex := astPointer + 1 + 1;
+
+    semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+
+    compare_types(ast[conditionTypeIndex], SPL_TYPE_BOOL_INDEX, entries);
+
+    semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf); // Consequence
+    semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf); // Alternative
+}
+
+proc semantic_analysis_while_stmt(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var conditionTypeIndex: int;
+
+    conditionTypeIndex := astPointer + 1 + 1;
+
+    semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+
+    compare_types(ast[conditionTypeIndex], SPL_TYPE_BOOL_INDEX, entries);
+
+    semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf); // Body
+}
+
+proc semantic_analysis_var_expr(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var thisTypeIndex: int;
+    var childTypeIndex: int;
+
+    thisTypeIndex := astPointer;
+    astPointer := astPointer + 1; // Skip type slot
+
+    childTypeIndex := astPointer + 1 + 1;
+    semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+
+    ast[thisTypeIndex] := ast[childTypeIndex];
+}
+
+proc semantic_analysis_call_stmt(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var nameStart: int;
+    var nameLen: int;
+    var entryFound: int;
+    var entryIndex: int;
+    var argsCounter: int;
+    var argsEndIndex: int;
+    var paramCount: int;
+    var paramListStart: int;
+    var currParamIndex: int;
+    var currArgTypeIndex: int;
+    var argsCountingIndex: int;
+
+    nameLen := ast[astPointer];
+    astPointer := astPointer + 1;
+    nameStart := astPointer;
+    astPointer := astPointer + nameLen;
+
+    hashmap_cpy_key(ast, keyBuf, nameStart, nameLen);
+    symbol_table_lookup(symbolTables, tablePointer, keyBuf, nameLen, entryFound, entryIndex);
+
+    if (entries[entryIndex] # SYM_TAB_ENTRY_PROC) {
+        PC('E', 'r', 'r', 'o', 'r', ':', ' ', 'C', 'a', 'l', 'l', ' ', 'o', 'f', ' ', 'n', 'o', 'n', '-', 'p', 'r', 'o', 'c', 'e', 'd', 'u', 'r', 'e', ' ', '(')
+        hash_map_print_key(keyBuf, nameLen);
+        PC(')', '\n')
+        exit(); // SEMANTIC ERROR: CaLL of non-procedure
+    }
+
+    paramListStart := entryIndex + 3;
+    paramCount := entries[entryIndex + 2]; // +1 is local table, +2 is param count
+
+    astPointer := astPointer + 1; // Skip argument list node head
+    argsEndIndex := astPointer + ast[astPointer];
+    astPointer := astPointer + 1; // Skip argument list node length
+
+    argsCounter := 0;
+    argsCountingIndex := astPointer;
+    while (argsCountingIndex < argsEndIndex) {
+        argsCountingIndex := argsCountingIndex + 1 + 1 + ast[argsCountingIndex + 1];
+        argsCounter := argsCounter + 1;
+    }
+
+    if (argsCounter # paramCount) {
+        PC('E', 'r', 'r', 'o', 'r', ':', ' ', 'W', 'r', 'o', 'n', 'g', ' ', 'n', 'u', 'm', 'b', 'e', 'r', ' ', 'o', 'f', ' ', 'a', 'r', 'g', 'u', 'm', 'e', 'n', 't', 's', ' ', 't', 'o', ' ', 'p', 'r', 'o', 'c', 'e', 'd', 'u', 'r', 'e', ' ', '(')
+        hash_map_print_key(keyBuf, nameLen);
+        PC(')', ',', ' ', 'e', 'x', 'p', 'e', 'c', 't', 'e', 'd', ' ')
+        printi(paramCount);
+        PC(',', ' ', 'g', 'o', 't', ' ')
+        printi(argsCounter);
+        PC('\n')
+        exit(); // Wrong number of arguments to function
+    }
+
+    argsCounter := 0;
+    while (astPointer < argsEndIndex) {
+        currParamIndex := paramListStart + argsCounter * 5;
+
+        if (entries[currParamIndex] # 0) { // If current param type is reference
+            if (ast[astPointer] # NODE_VAR_EXPR) {
+                PC('E', 'r', 'r', 'o', 'r', ':', ' ', 'A', 'r', 'g', 'u', 'm', 'e', 'n', 't', ' ')
+                printi(argsCounter + 1);
+                PC(' ', 't', 'o', ' ', 'p', 'r', 'o', 'c', 'e', 'd', 'u', 'r', 'e', ' ', '(')
+                hash_map_print_key(keyBuf, nameLen);
+                PC(')', ' ', 'm', 'u', 's', 't', ' ', 'b', 'e', ' ', 'v', 'a', 'r', 'i', 'a', 'b', 'l', 'e', '\n')
+                exit(); // SEMANTIC ERROR: Argument must be a variable
+            }
+        }
+
+        currArgTypeIndex := astPointer + 1 + 1;
+
+        semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+        compare_types(ast[currArgTypeIndex], currParamIndex + 3, entries);
+
+        argsCounter := argsCounter + 1;
+    }
+}
+
+proc semantic_analysis_rec(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    tablePointer: int, 
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var nodeType: int;
+    var nodeLength: int;
+    var t: int;
+   
+    nodeType := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    nodeLength := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    if (nodeType = NODE_STMT_LIST) {
+        t := astPointer;
+        while (astPointer < t + nodeLength) {
+            semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+        }
+    } else if (nodeType = NODE_PROC_DECL) {
+        semantic_analysis_proc_decl(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    } else if (nodeType = NODE_ASSGN_STMT) {
+        semantic_analysis_assgn_stmt(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    } else if (nodeType = NODE_UNA_EXPR) {
+        semantic_analysis_una_expr(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    } else if (nodeType = NODE_NAMED_VAR) {
+        semantic_analysis_named_var(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    } else if (nodeType = NODE_INT_LIT) {
+        semantic_analysis_int_lit(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);      
+    } else if (nodeType = NODE_ARR_ACC) {
+        semantic_analysis_arr_acc(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);   
+    } else if (nodeType = NODE_BIN_EXPR) {
+         semantic_analysis_bin_expr(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);          
+    } else if (nodeType = NODE_IF_STMT) {
+        semantic_analysis_if_stmt(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);        
+    } else if (nodeType = NODE_WHILE_STMT) {
+        semantic_analysis_while_stmt(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    } else if (nodeType = NODE_VAR_EXPR) {
+        semantic_analysis_var_expr(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    } else if (nodeType = NODE_CALL_STMT) {
+        semantic_analysis_call_stmt(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    } else if (nodeType = NODE_COMP_STMT) {
+        semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    } else if (nodeType = NODE_EMPTY_STMT) {
+    } else {
+        astPointer := astPointer + nodeLength; // Skip unhandled nodes
+    }
+}
+
+proc semantic_analysis(ref ast: DataArray, ref symbolTables: SymbolTables, ref symbolTableEntries: DataArray, ref entryPointer: int) {
+    var astPointer: int;
+    var keyBuf: HashMapKeyBuffer;
+
+    astPointer := 0;
+
+    semantic_analysis_rec(ast, astPointer, symbolTables, 0, symbolTableEntries, entryPointer, keyBuf);
+}

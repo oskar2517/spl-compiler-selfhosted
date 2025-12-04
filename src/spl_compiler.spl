@@ -1,0 +1,69 @@
+type DataArray = array[150000] of int;
+
+#include "defines.spl"
+#include "util.spl"
+#include "hash_map.spl"
+#include "lex.spl"
+#include "parse.spl"
+#include "type.spl"
+#include "symbol.spl"
+#include "name_analysis.spl"
+#include "semantic_analysis.spl"
+#include "allocation.spl"
+#include "codegen.spl"
+
+proc read_input(ref input: DataArray, ref length: int) {
+    var char: int;
+    var index: int;
+
+    readc(char);
+    input[0] := char;
+
+    index := 1;
+    while (char # 0x40) { // Input file must end with at (0x40) to indicate EOF
+        readc(char);
+        input[index] := char;
+        index := index + 1;
+    }
+
+    // Replace dot (0x2E) with 0 to indicate EOF
+    input[index - 1] := 0;
+    length := index - 1;
+}
+
+proc main() {
+var input: DataArray;
+    var inputLength: int;
+    var tokenPointer: int;
+    var tokens: DataArray;
+    var ast: DataArray;
+    var symbolTables: SymbolTables;
+    var symbolTableEntries: DataArray;
+    var symbolTableEntryPointer: int;
+
+    read_input(input, inputLength);
+
+    lex(tokens, tokenPointer, input, inputLength);
+
+    //lex_print_tokens(tokens, tokenPointer);
+    parse(ast, tokens);
+
+    //parse_print_ast(ast);
+
+    init_table_maps(symbolTables);
+
+    symbolTableEntryPointer := 0;
+    init_global_table(GLOBAL_TABLE, 0, symbolTableEntries, symbolTableEntryPointer);
+
+    //print_table(GLOBAL_TABLE, symbolTableEntries);
+
+    name_analysis(ast, symbolTables, symbolTableEntries, symbolTableEntryPointer);
+
+    //print_tables(symbolTables, symbolTableEntries, 2);
+
+    semantic_analysis(ast, symbolTables, symbolTableEntries, symbolTableEntryPointer);
+
+    var_alloc(ast, symbolTables, symbolTableEntries);
+
+    codegen(ast, symbolTables, symbolTableEntries);
+}

@@ -1,0 +1,982 @@
+#define SKIP_NODE astPointer := astPointer + 1 + 1 + ast[astPointer + 1];
+
+#define NODE_ARG_LIST        0
+#define NODE_ARR_ACC         1
+#define NODE_ARR_TYPE_EXPR   2
+#define NODE_ASSGN_STMT      3
+#define NODE_BIN_EXPR        4
+#define NODE_CALL_STMT       5
+#define NODE_COMP_STMT       6
+#define NODE_EMPTY_STMT      7
+#define NODE_IF_STMT         8
+#define NODE_INT_LIT         9
+#define NODE_NAMED_TYPE_EXPR 10 
+#define NODE_NAMED_VAR       11
+#define NODE_PARAM_DECL      12
+#define NODE_PARAM_DECL_LIST 13
+#define NODE_PROC_DECL       14
+#define NODE_STMT_LIST       15
+#define NODE_TYPE_DECL       16
+#define NODE_UNA_EXPR        17
+#define NODE_VAR_DECL        18
+#define NODE_VAR_DECL_LIST   19
+#define NODE_VAR_EXPR        20
+#define NODE_WHILE_STMT      21
+
+#define CURR_TOK_V tokens[tokenPointer + 1]
+#define AST_W(n) ast[astPointer] := (n); astPointer := astPointer + 1;
+
+#define NODE(type) AST_W(type)
+#define RESERVE_NODE_LENGTH nodeLengthPos := astPointer; AST_W(0) nodeStart := astPointer; 
+#define WRITE_NODE_LENGTH ast[nodeLengthPos] := astPointer - nodeStart;
+#define EAT_TOKEN(type) parse_eat((type), tokens, tokenPointer);
+#define EAT_SEMIC parse_eat(TOK_SEMIC, tokens, tokenPointer);
+
+#define PRINT_AST_IDENT \
+        t := ast[astPointer]; \
+        astPointer := astPointer + 1; \
+        array_print(ast, astPointer, t); \
+        astPointer := astPointer + t; \
+
+proc parse_eat(type_: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var length: int;
+
+    if (CURR_TOK = type_) {
+        if (type_ = TOK_IDENT) {
+            tokenPointer := tokenPointer + 1; // Skip token type
+            length := tokens[tokenPointer]; // Ident length
+            tokenPointer := tokenPointer + 1; // Skip token length
+            tokenPointer := tokenPointer + length; // Skip ident literal
+        } else if (type_ = TOK_INT) {
+            tokenPointer := tokenPointer + 2; // Skip type and literal
+        } else {
+            tokenPointer := tokenPointer + 1;
+        }
+    } else {
+        PC('E', 'r', 'r', 'o', 'r', ':', ' ', 'U', 'n', 'e', 'x', 'p', 'e', 'c', 't', 'e', 'd', ' ', 't', 'o', 'k', 'e', 'n', ' ', '(')
+        printi(CURR_TOK);
+        PC(')', '\n')
+        exit(); // PARSE ERROR: unexpected token `CURR_TOK`, expected `type` 
+    }
+}
+
+proc parse_cpy_ident(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var length: int;
+    var valueStart: int;
+
+    length := tokens[tokenPointer + 1];
+    valueStart := tokenPointer + 2;
+
+    ast[astPointer] := length;
+    astPointer := astPointer + 1;
+    array_cpy(tokens, ast, valueStart, length, astPointer);
+
+    astPointer := astPointer + length;
+}
+
+proc parse_type_expr(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+
+    if (CURR_TOK = TOK_ARRAY) {
+        NODE(NODE_ARR_TYPE_EXPR)
+        RESERVE_NODE_LENGTH
+
+        AST_W(0) // Reserve space for datatype initialized during name analysis
+
+        EAT_TOKEN(TOK_ARRAY)
+        EAT_TOKEN(TOK_LBRACK)
+
+        AST_W(CURR_TOK_V) // Write size to AST
+        EAT_TOKEN(TOK_INT)
+
+        EAT_TOKEN(TOK_RBRACK)
+        EAT_TOKEN(TOK_OF);
+
+        parse_type_expr(ast, astPointer, tokens, tokenPointer);
+
+        WRITE_NODE_LENGTH
+    } else if (CURR_TOK = TOK_IDENT) {
+        NODE(NODE_NAMED_TYPE_EXPR)
+        RESERVE_NODE_LENGTH
+
+        AST_W(0) // Reserve space for datatype initialized during name analysis
+
+        parse_cpy_ident(ast, astPointer, tokens, tokenPointer);
+        EAT_TOKEN(TOK_IDENT)
+
+        WRITE_NODE_LENGTH
+    } else {
+        PC('E', 'r', 'r', 'o', 'r', ':', ' ', 'E', 'x', 'p', 'e', 'c', 't', 'e', 'd', ' ', 'e', 'x', 'p', 'r', 'e', 's', 's', 'i', 'o', 'n', '\n')
+        exit(); // PARSE ERROR: expected type expression
+    }
+}
+
+proc parse_type_decl(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+
+    NODE(NODE_TYPE_DECL)
+    RESERVE_NODE_LENGTH
+
+    EAT_TOKEN(TOK_TYPE)
+
+    parse_cpy_ident(ast, astPointer, tokens, tokenPointer);
+    EAT_TOKEN(TOK_IDENT)
+
+    EAT_TOKEN(TOK_EQUAL)
+
+    parse_type_expr(ast, astPointer, tokens, tokenPointer);
+
+    EAT_SEMIC
+
+    WRITE_NODE_LENGTH
+}
+
+proc parse_param_decl(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+
+    NODE(NODE_PARAM_DECL)
+    RESERVE_NODE_LENGTH
+    AST_W(0) // Reserve slot for datatype
+
+    if (CURR_TOK = TOK_REF) {
+        AST_W(1)
+        EAT_TOKEN(TOK_REF)
+    } else {
+        AST_W(0)
+    }
+
+    parse_cpy_ident(ast, astPointer, tokens, tokenPointer);
+    EAT_TOKEN(TOK_IDENT)
+
+    EAT_TOKEN(TOK_COLON)
+
+    parse_type_expr(ast, astPointer, tokens, tokenPointer);
+
+    WRITE_NODE_LENGTH
+}
+
+proc parse_param_decl_list(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+
+    NODE(NODE_PARAM_DECL_LIST)
+    RESERVE_NODE_LENGTH
+
+    if (CURR_TOK # TOK_RPAREN) {
+        parse_param_decl(ast, astPointer, tokens, tokenPointer);
+
+        while (CURR_TOK = TOK_COMMA) {
+            EAT_TOKEN(TOK_COMMA)
+
+            parse_param_decl(ast, astPointer, tokens, tokenPointer);
+        }
+    }
+
+    WRITE_NODE_LENGTH
+}
+
+proc parse_var_decl(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+
+    NODE(NODE_VAR_DECL)
+    RESERVE_NODE_LENGTH 
+
+    EAT_TOKEN(TOK_VAR)
+    
+    parse_cpy_ident(ast, astPointer, tokens, tokenPointer);
+    EAT_TOKEN(TOK_IDENT)
+
+    EAT_TOKEN(TOK_COLON)
+
+    parse_type_expr(ast, astPointer, tokens, tokenPointer);
+
+    EAT_SEMIC
+
+    WRITE_NODE_LENGTH
+}
+
+proc parse_expr(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    parse_comparison(ast, astPointer, tokens, tokenPointer);
+}
+
+proc parse_comparison(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var leftStart: int;
+    var leftEnd: int;
+    var hasOp: int;
+    var nodeLengthPos: int;
+    var nodeStart: int;
+    var op: int;
+    var i: int;
+
+    leftStart := astPointer;
+    parse_numeric(ast, astPointer, tokens, tokenPointer);
+    leftEnd := astPointer;
+
+    hasOp := 0;
+    if (CURR_TOK = TOK_LT) {
+        hasOp := 1;
+    }
+    if (CURR_TOK = TOK_LTE) {
+        hasOp := 1;
+    }
+    if (CURR_TOK = TOK_GT) {
+        hasOp := 1;
+    }
+    if (CURR_TOK = TOK_GTE) {
+        hasOp := 1;
+    }
+    if (CURR_TOK = TOK_EQUAL) {
+        hasOp := 1;
+    }
+    if (CURR_TOK = TOK_HASH) {
+        hasOp := 1;
+    }
+
+    while (hasOp # 0) {
+        i := leftEnd - 1;
+        while (i >= leftStart) {
+            ast[i + 3] := ast[i];
+            i := i - 1;
+        }
+
+        ast[leftStart] := NODE_BIN_EXPR;
+        nodeLengthPos := leftStart + 1;
+        ast[nodeLengthPos] := 0;
+        ast[leftStart + 2] := 0; // type slot
+        nodeStart := leftStart + 2;
+
+        astPointer := leftEnd + 3;
+
+        op := CURR_TOK;
+        AST_W(op);
+
+        if (op = TOK_LT) {
+            EAT_TOKEN(TOK_LT)
+        } else if (op = TOK_LTE) {
+            EAT_TOKEN(TOK_LTE)
+        } else if (op = TOK_GT) {
+            EAT_TOKEN(TOK_GT)
+        } else if (op = TOK_GTE) {
+            EAT_TOKEN(TOK_GTE)
+        } else if (op = TOK_EQUAL) {
+            EAT_TOKEN(TOK_EQUAL)
+        } else {
+            EAT_TOKEN(TOK_HASH)
+        }
+
+        parse_numeric(ast, astPointer, tokens, tokenPointer);
+
+        ast[nodeLengthPos] := astPointer - nodeStart;
+
+        leftEnd := astPointer;
+
+        hasOp := 0;
+        if (CURR_TOK = TOK_LT) {
+            hasOp := 1;
+        }
+        if (CURR_TOK = TOK_LTE) {
+            hasOp := 1;
+        }
+        if (CURR_TOK = TOK_GT) {
+            hasOp := 1;
+        }
+        if (CURR_TOK = TOK_GTE) {
+            hasOp := 1;
+        }
+        if (CURR_TOK = TOK_EQUAL) {
+            hasOp := 1;
+        }
+        if (CURR_TOK = TOK_HASH) {
+            hasOp := 1;
+        }
+    }
+}
+
+proc parse_numeric(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var leftStart: int;
+    var leftEnd: int;
+    var hasOp: int;
+    var nodeLengthPos: int;
+    var nodeStart: int;
+    var op: int;
+    var i: int;
+
+    leftStart := astPointer;
+    parse_term(ast, astPointer, tokens, tokenPointer);
+    leftEnd := astPointer;
+
+    hasOp := 0;
+    if (CURR_TOK = TOK_PLUS) {
+        hasOp := 1;
+    }
+    if (CURR_TOK = TOK_MINUS) {
+        hasOp := 1;
+    }
+
+    while (hasOp # 0) {
+        i := leftEnd - 1;
+        while (i >= leftStart) {
+            ast[i + 3] := ast[i];
+            i := i - 1;
+        }
+
+        ast[leftStart] := NODE_BIN_EXPR;
+        nodeLengthPos := leftStart + 1;
+        ast[nodeLengthPos] := 0;
+        ast[leftStart + 2] := 0; // type slot (filled in semantic analysis)
+        nodeStart := leftStart + 2;
+
+        astPointer := leftEnd + 3;
+
+        op := CURR_TOK;
+        AST_W(op);
+
+        if (op = TOK_PLUS) {
+            EAT_TOKEN(TOK_PLUS)
+        } else {
+            EAT_TOKEN(TOK_MINUS)
+        }
+
+        parse_term(ast, astPointer, tokens, tokenPointer);
+
+        ast[nodeLengthPos] := astPointer - nodeStart;
+
+        leftEnd := astPointer;
+
+        hasOp := 0;
+        if (CURR_TOK = TOK_PLUS) {
+            hasOp := 1;
+        }
+        if (CURR_TOK = TOK_MINUS) {
+            hasOp := 1;
+        }
+    }
+}
+
+proc parse_term(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var leftStart: int;
+    var leftEnd: int;
+    var hasOp: int;
+    var nodeLengthPos: int;
+    var nodeStart: int;
+    var op: int;
+    var i: int;
+
+    leftStart := astPointer;
+    parse_signed_factor(ast, astPointer, tokens, tokenPointer);
+    leftEnd := astPointer;
+
+    hasOp := 0;
+    if (CURR_TOK = TOK_ASTERISK) {
+        hasOp := 1;
+    }
+    if (CURR_TOK = TOK_SLASH) {
+        hasOp := 1;
+    }
+
+    while (hasOp # 0) {
+        i := leftEnd - 1;
+        while (i >= leftStart) {
+            ast[i + 3] := ast[i];
+            i := i - 1;
+        }
+
+        ast[leftStart] := NODE_BIN_EXPR;
+        nodeLengthPos := leftStart + 1;
+        ast[nodeLengthPos] := 0;
+        ast[leftStart + 2] := 0; // type slot
+        nodeStart := leftStart + 2;
+
+        astPointer := leftEnd + 3;
+
+        op := CURR_TOK;
+        AST_W(op);
+
+        if (op = TOK_ASTERISK) {
+            EAT_TOKEN(TOK_ASTERISK)
+        } else {
+            EAT_TOKEN(TOK_SLASH)
+        }
+
+        parse_signed_factor(ast, astPointer, tokens, tokenPointer);
+
+        ast[nodeLengthPos] := astPointer - nodeStart;
+
+        leftEnd := astPointer;
+
+        hasOp := 0;
+        if (CURR_TOK = TOK_ASTERISK) {
+            hasOp := 1;
+        }
+        if (CURR_TOK = TOK_SLASH) {
+            hasOp := 1;
+        }
+    }
+}
+
+proc parse_signed_factor(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+
+    if (CURR_TOK = TOK_MINUS) {
+        NODE(NODE_UNA_EXPR)
+        RESERVE_NODE_LENGTH
+        AST_W(0) // Reserve space for data type initialized during semantic analysis
+
+        AST_W(TOK_MINUS)
+        EAT_TOKEN(TOK_MINUS)
+
+        parse_factor(ast, astPointer, tokens, tokenPointer);
+
+        WRITE_NODE_LENGTH
+    } else {
+        parse_factor(ast, astPointer, tokens, tokenPointer);
+    }
+}
+
+proc parse_factor(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+
+    if (CURR_TOK = TOK_IDENT) {
+        NODE(NODE_VAR_EXPR)
+        RESERVE_NODE_LENGTH
+        AST_W(0) // Reserve space for data type initialized during semantic analysis
+
+        parse_variable(ast, astPointer, tokens, tokenPointer);
+
+        WRITE_NODE_LENGTH
+    } else if (CURR_TOK = TOK_INT) {
+        NODE(NODE_INT_LIT)
+        RESERVE_NODE_LENGTH
+        AST_W(0) // Reserve space for data type initialized during semantic analysis
+
+        AST_W(CURR_TOK_V)
+        EAT_TOKEN(TOK_INT)
+
+        WRITE_NODE_LENGTH
+    } else if (CURR_TOK = TOK_LPAREN) {
+        EAT_TOKEN(TOK_LPAREN)
+        parse_expr(ast, astPointer, tokens, tokenPointer);
+        EAT_TOKEN(TOK_RPAREN)
+    } else {
+        PC('E', 'r', 'r', 'o', 'r', ':', ' ', 'E', 'x', 'p', 'e', 'c', 't', 'e', 'd', ' ', 'e', 'x', 'p', 'r', 'e', 's', 's', 'i', 'o', 'n', ' ', 'f', 'a', 'c', 't', 'o', 'r', '\n')
+        exit(); // PARSE ERROR: expected expression factor
+    }
+}
+
+proc parse_variable(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var leftStart: int;
+    var leftEnd: int;
+    var nodeStart: int;
+    var nodeLengthPos: int;
+    var i: int;
+
+    leftStart := astPointer;
+
+    NODE(NODE_NAMED_VAR)
+    RESERVE_NODE_LENGTH
+    AST_W(0) // Reserve space for datatype initialized during semantic analysis
+
+    parse_cpy_ident(ast, astPointer, tokens, tokenPointer);
+    EAT_TOKEN(TOK_IDENT)
+
+    WRITE_NODE_LENGTH
+
+    leftEnd := astPointer;
+
+    while (CURR_TOK = TOK_LBRACK) {
+        EAT_TOKEN(TOK_LBRACK)
+
+        i := leftEnd - 1;
+        while (i >= leftStart) {
+            ast[i + 3] := ast[i];
+            i := i - 1;
+        }
+
+        ast[leftStart] := NODE_ARR_ACC;
+        nodeLengthPos := leftStart + 1;
+        ast[nodeLengthPos] := 0;
+        ast[leftStart + 2] := 0; // Reserve space for datatype initialized during semantic analysis
+        nodeStart := leftStart + 2;
+
+        astPointer := leftEnd + 3;
+
+        parse_expr(ast, astPointer, tokens, tokenPointer);
+
+        EAT_TOKEN(TOK_RBRACK)
+
+        ast[nodeLengthPos] := astPointer - nodeStart;
+
+        leftEnd := astPointer;
+    }
+}
+
+proc parse_assgn_stmt(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+
+    NODE(NODE_ASSGN_STMT)
+    RESERVE_NODE_LENGTH
+
+    parse_variable(ast, astPointer, tokens, tokenPointer);
+
+    EAT_TOKEN(TOK_ASSGN)
+
+    parse_expr(ast, astPointer, tokens, tokenPointer);
+
+    EAT_SEMIC
+
+    WRITE_NODE_LENGTH 
+}
+
+proc parse_if_stmt(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+
+    NODE(NODE_IF_STMT)
+    RESERVE_NODE_LENGTH
+
+    EAT_TOKEN(TOK_IF)
+    EAT_TOKEN(TOK_LPAREN)
+
+    parse_expr(ast, astPointer, tokens, tokenPointer);
+
+    EAT_TOKEN(TOK_RPAREN)
+
+    parse_stmt(ast, astPointer, tokens, tokenPointer);
+
+    if (CURR_TOK = TOK_ELSE) {
+        EAT_TOKEN(TOK_ELSE)
+        parse_stmt(ast, astPointer, tokens, tokenPointer);
+    } else {
+        NODE(NODE_EMPTY_STMT)
+        RESERVE_NODE_LENGTH
+    }
+
+    WRITE_NODE_LENGTH 
+}
+
+proc parse_compound_stmt(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+
+    NODE(NODE_COMP_STMT)
+    RESERVE_NODE_LENGTH
+
+    EAT_TOKEN(TOK_LCURL);
+    parse_stmt_list(ast, astPointer, tokens, tokenPointer);
+    EAT_TOKEN(TOK_RCURL);
+
+    WRITE_NODE_LENGTH
+}
+
+proc parse_while_stmt(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+
+    NODE(NODE_WHILE_STMT)
+    RESERVE_NODE_LENGTH
+
+    EAT_TOKEN(TOK_WHILE)
+    EAT_TOKEN(TOK_LPAREN)
+
+    parse_expr(ast, astPointer, tokens, tokenPointer);
+
+    EAT_TOKEN(TOK_RPAREN)
+
+    parse_stmt(ast, astPointer, tokens, tokenPointer);
+
+    WRITE_NODE_LENGTH 
+}
+
+proc parse_empty_stmt(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+
+    NODE(NODE_EMPTY_STMT)
+    RESERVE_NODE_LENGTH
+
+    EAT_SEMIC
+
+    WRITE_NODE_LENGTH
+}
+
+proc parse_arg_list(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+
+    NODE(NODE_ARG_LIST)
+    RESERVE_NODE_LENGTH
+
+    if (CURR_TOK # TOK_RPAREN) {
+        parse_expr(ast, astPointer, tokens, tokenPointer);
+
+        while (CURR_TOK = TOK_COMMA) {
+            EAT_TOKEN(TOK_COMMA)
+
+            parse_expr(ast, astPointer, tokens, tokenPointer);
+        }
+    }
+
+    WRITE_NODE_LENGTH
+}
+
+proc parse_call_stmt(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+
+    NODE(NODE_CALL_STMT)
+    RESERVE_NODE_LENGTH
+
+    parse_cpy_ident(ast, astPointer, tokens, tokenPointer);
+    EAT_TOKEN(TOK_IDENT)
+
+    EAT_TOKEN(TOK_LPAREN)
+    parse_arg_list(ast, astPointer, tokens, tokenPointer);
+    EAT_TOKEN(TOK_RPAREN)
+
+    EAT_SEMIC
+
+    WRITE_NODE_LENGTH
+}
+
+proc parse_stmt(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    if (CURR_TOK = TOK_IDENT) {
+        if (tokens[tokenPointer + tokens[tokenPointer + 1] + 2] = TOK_LPAREN) { // if next token is left paren
+            parse_call_stmt(ast, astPointer, tokens, tokenPointer);
+        } else {
+            parse_assgn_stmt(ast, astPointer, tokens, tokenPointer);
+        }
+    } else if (CURR_TOK = TOK_IF) {
+        parse_if_stmt(ast, astPointer, tokens, tokenPointer);
+    } else if (CURR_TOK = TOK_LCURL) {
+        parse_compound_stmt(ast, astPointer, tokens, tokenPointer);
+    } else if (CURR_TOK = TOK_WHILE) {
+        parse_while_stmt(ast, astPointer, tokens, tokenPointer);  
+    } else if (CURR_TOK = TOK_SEMIC) {
+        parse_empty_stmt(ast, astPointer, tokens, tokenPointer);
+    }
+}
+
+proc parse_stmt_list(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+    var continue: int;
+
+    NODE(NODE_STMT_LIST)
+    RESERVE_NODE_LENGTH
+
+    continue := 0;
+    if (CURR_TOK # TOK_RCURL) {
+        if (CURR_TOK # TOK_EOF) {
+            continue := 1;
+        }
+    }
+
+    while (continue # 0) {
+        parse_stmt(ast, astPointer, tokens, tokenPointer);
+
+        continue := 0;
+        if (CURR_TOK # TOK_RCURL) {
+            if (CURR_TOK # TOK_EOF) {
+                continue := 1;
+            }
+        }
+    }
+
+    WRITE_NODE_LENGTH
+}
+
+proc parse_var_decl_list(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+
+    NODE(NODE_VAR_DECL_LIST)
+    RESERVE_NODE_LENGTH
+
+    while (CURR_TOK = TOK_VAR) {
+        parse_var_decl(ast, astPointer, tokens, tokenPointer);
+    }
+
+    WRITE_NODE_LENGTH
+}
+
+proc parse_proc_decl(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+
+    NODE(NODE_PROC_DECL)
+    RESERVE_NODE_LENGTH
+
+    EAT_TOKEN(TOK_PROC)
+
+    parse_cpy_ident(ast, astPointer, tokens, tokenPointer);
+    EAT_TOKEN(TOK_IDENT)
+
+    EAT_TOKEN(TOK_LPAREN)
+    parse_param_decl_list(ast, astPointer, tokens, tokenPointer);
+    EAT_TOKEN(TOK_RPAREN)
+
+    EAT_TOKEN(TOK_LCURL)
+
+    parse_var_decl_list(ast, astPointer, tokens, tokenPointer);
+    parse_stmt_list(ast, astPointer, tokens, tokenPointer);
+
+    EAT_TOKEN(TOK_RCURL)
+
+    WRITE_NODE_LENGTH
+}
+
+proc parse_global(ref ast: DataArray, ref astPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    if (CURR_TOK = TOK_TYPE) {
+        parse_type_decl(ast, astPointer, tokens, tokenPointer);
+    } else if (CURR_TOK = TOK_PROC) {
+        parse_proc_decl(ast, astPointer, tokens, tokenPointer);
+    } else {
+        PC('E', 'r', 'r', 'o', 'r', ':', ' ', 'E', 'x', 'p', 'e', 'c', 't', 'e', 'd', ' ', 't', 'y', 'p', 'e', ' ', 'd', 'e', 'c', 'l', 'a', 'r', 'a', 't', 'i', 'o', 'n', ' ', 'o', 'r', ' ', 'p', 'r', 'o', 'c', 'e', 'd', 'u', 'r', 'e', ' ', 'd', 'e', 'c', 'l', 'a', 'r', 'a', 't', 'i', 'o', 'n', '\n')
+        exit(); // PARSE ERROR: expected type declaration or procedure declaration
+    }
+}
+
+proc parse_print_node_type(nodeType: int) {
+    if (nodeType = NODE_ARG_LIST) {
+        PC('A', 'R', 'G', '_', 'L', 'I', 'S', 'T')   
+    } else if (nodeType = NODE_ARR_ACC) {
+        PC('A', 'R', 'R', '_', 'A', 'C', 'C')
+    } else if (nodeType = NODE_ARR_TYPE_EXPR) {
+        PC('A', 'R', 'R', '_', 'T', 'Y', 'P', 'E', '_', 'E', 'X', 'P', 'R')
+    } else if (nodeType = NODE_ASSGN_STMT) {
+        PC('A', 'S', 'S', 'G', 'N', '_', 'S', 'T', 'M', 'T')
+    } else if (nodeType = NODE_BIN_EXPR) {
+        PC('B', 'I', 'N', '_', 'E', 'X', 'P', 'R')
+    } else if (nodeType = NODE_CALL_STMT) {
+        PC('C', 'A', 'L', 'L', '_', 'S', 'T', 'M', 'T')
+    } else if (nodeType = NODE_COMP_STMT) {
+        PC('C', 'O', 'M', 'P', '_', 'S', 'T', 'M', 'T')
+    } else if (nodeType = NODE_EMPTY_STMT) {
+        PC('E', 'M', 'P', 'T', 'Y', '_', 'S', 'T', 'M', 'T')
+    } else if (nodeType = NODE_IF_STMT) {
+        PC('I', 'F', '_', 'S', 'T', 'M', 'T')
+    } else if (nodeType = NODE_INT_LIT) {
+        PC('I', 'N', 'T', '_', 'L', 'I', 'T')
+    } else if (nodeType = NODE_NAMED_TYPE_EXPR) {
+        PC('N', 'A', 'M', 'E', 'D', '_', 'T', 'Y', 'P', 'E', '_', 'E', 'X', 'P', 'R')
+    } else if (nodeType = NODE_NAMED_VAR) {
+        PC('N', 'A', 'M', 'E', 'D', '_', 'V', 'A', 'R')
+    } else if (nodeType = NODE_PARAM_DECL) {
+        PC('P', 'A', 'R', 'A', 'M', '_', 'D', 'E', 'C', 'L')
+    } else if (nodeType = NODE_PARAM_DECL_LIST) {
+        PC('P', 'A', 'R', 'A', 'M', '_', 'D', 'E', 'C', 'L', '_', 'L', 'I', 'S', 'T')    
+    } else if (nodeType = NODE_PROC_DECL) {
+        PC('P', 'R', 'O', 'C', '_', 'D', 'E', 'C', 'L')         
+    } else if (nodeType = NODE_STMT_LIST) {
+        PC('S', 'T', 'M', 'T', '_', 'L', 'I', 'S', 'T')          
+    } else if (nodeType = NODE_TYPE_DECL) {
+        PC('T', 'Y', 'P', 'E', '_', 'D', 'E', 'C', 'L')        
+    } else if (nodeType = NODE_UNA_EXPR) {
+        PC('U', 'N', 'A', '_', 'E', 'X', 'P', 'R') 
+    } else if (nodeType = NODE_VAR_DECL) {
+        PC('V', 'A', 'R', '_', 'D', 'E', 'C', 'L')      
+    } else if (nodeType = NODE_VAR_DECL_LIST) {
+        PC('V', 'A', 'R', '_', 'D', 'E', 'C', 'L', '_', 'L', 'I', 'S', 'T')      
+    } else if (nodeType = NODE_VAR_EXPR) {
+        PC('V', 'A', 'R', '_', 'E', 'X', 'P', 'R')  
+    } else if (nodeType = NODE_WHILE_STMT) {
+        PC('W', 'H', 'I', 'L', 'E', '_', 'S', 'T', 'M', 'T')  
+    }
+}
+
+proc parse_print_list(ref ast: DataArray, ref astPointer: int, nodeType: int) {
+    while (ast[astPointer] = nodeType) {
+        parse_print_ast_rec(ast, astPointer);
+
+        if (ast[astPointer] = nodeType) {
+            PC(',', ' ')
+        }
+    }
+}
+
+proc parse_print_ast_rec(ref ast: DataArray, ref astPointer: int) {
+    var nodeType: int;
+    var nodeLength: int;
+    var t: int;
+
+    nodeType := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    nodeLength := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    printc('(');
+    parse_print_node_type(nodeType);
+    printc(' ');
+
+    if (nodeType = NODE_TYPE_DECL) {
+        PRINT_AST_IDENT
+
+        printc(' ');
+
+        parse_print_ast_rec(ast, astPointer);
+    } else if (nodeType = NODE_NAMED_TYPE_EXPR) {
+        astPointer := astPointer + 1; // Skip slot for datatype
+        PRINT_AST_IDENT
+    } else if (nodeType = NODE_ARR_TYPE_EXPR) {
+        astPointer := astPointer + 1; // Skip slot for datatype
+        printi(ast[astPointer]); // Size
+        astPointer := astPointer + 1;
+
+        printc(' ');
+
+        parse_print_ast_rec(ast, astPointer);
+    } else if (nodeType = NODE_PROC_DECL) {
+        PRINT_AST_IDENT
+        printc(' ');
+        parse_print_ast_rec(ast, astPointer);
+        printc(' ');
+        parse_print_ast_rec(ast, astPointer);
+        printc(' ');
+        parse_print_ast_rec(ast, astPointer);
+    } else if (nodeType = NODE_PARAM_DECL_LIST) {
+        parse_print_list(ast, astPointer, NODE_PARAM_DECL);
+    } else if (nodeType = NODE_PARAM_DECL) {
+        astPointer := astPointer + 1; // Skip slot for datatype
+        printi(ast[astPointer]);
+        astPointer := astPointer + 1;
+        printc(' ');
+        PRINT_AST_IDENT
+        printc(' ');
+        parse_print_ast_rec(ast, astPointer);
+    } else if (nodeType = NODE_VAR_DECL_LIST) {
+        parse_print_list(ast, astPointer, NODE_VAR_DECL);  
+    } else if (nodeType = NODE_VAR_DECL) {
+        PRINT_AST_IDENT
+        printc(' ');
+        parse_print_ast_rec(ast, astPointer);
+    } else if (nodeType = NODE_STMT_LIST) {
+        t := astPointer;
+        while (astPointer < t + nodeLength) {
+            parse_print_ast_rec(ast, astPointer);
+            if (astPointer < t + nodeLength) {
+                PC(',', ' ');
+            }
+        }
+    } else if (nodeType = NODE_ASSGN_STMT) {
+        parse_print_ast_rec(ast, astPointer);
+        printc(' ');
+        parse_print_ast_rec(ast, astPointer);
+    } else if (nodeType = NODE_NAMED_VAR) {
+        astPointer := astPointer + 1; // Skip slot for datatype
+        PRINT_AST_IDENT
+    } else if (nodeType = NODE_INT_LIT) {
+        astPointer := astPointer + 1; // Skip slot for datatype
+        printi(ast[astPointer]);
+        astPointer := astPointer + 1;
+    } else if (nodeType = NODE_BIN_EXPR) {
+        astPointer := astPointer + 1; // Skip slot fot datatype
+        parse_print_ast_rec(ast, astPointer);
+        printc(' ');
+        t := ast[astPointer]; // Operator
+        if (t = TOK_EQUAL) {
+            printc('=');
+        } else if (t = TOK_HASH) {
+            printc('#');
+        } else if (t = TOK_LT) {
+            printc('<');
+        } else if (t = TOK_LTE) {
+            PC('<', '=')
+        } else if (t = TOK_GT) {
+            printc('>');
+        } else if (t = TOK_GTE) {
+            PC('>', '=')
+        } else if (t = TOK_PLUS) {
+            printc('+');
+        } else if (t = TOK_MINUS) {
+            printc('-');
+        } else if (t = TOK_ASTERISK) {
+            printc('*');
+        } else if (t = TOK_SLASH) {
+            printc('/');
+        }
+        astPointer := astPointer + 1;
+        printc(' ');
+        parse_print_ast_rec(ast, astPointer);
+    } else if (nodeType = NODE_ARR_ACC) {
+        astPointer := astPointer + 1; // Skip slot fot datatype
+        parse_print_ast_rec(ast, astPointer);
+        printc(' ');
+        parse_print_ast_rec(ast, astPointer);
+    } else if (nodeType = NODE_IF_STMT) {
+        parse_print_ast_rec(ast, astPointer);
+        printc(' ');
+        parse_print_ast_rec(ast, astPointer);
+        printc(' ');
+        parse_print_ast_rec(ast, astPointer);
+        printc(' ');
+    } else if (nodeType = NODE_COMP_STMT) {
+        parse_print_ast_rec(ast, astPointer);
+    } else if (nodeType = NODE_WHILE_STMT) {
+        parse_print_ast_rec(ast, astPointer);
+        printc(' ');
+        parse_print_ast_rec(ast, astPointer);
+    } else if (nodeType = NODE_CALL_STMT) {
+        PRINT_AST_IDENT
+        printc(' ');
+        parse_print_ast_rec(ast, astPointer);      
+    } else if (nodeType = NODE_ARG_LIST) {
+        t := astPointer;
+        while (astPointer < t + nodeLength) {
+            parse_print_ast_rec(ast, astPointer);
+            if (astPointer < t + nodeLength) {
+                printc(',');
+                printc(' ');
+            }
+        }
+    } else if (nodeType = NODE_UNA_EXPR) {
+        astPointer := astPointer + 1; // Skip slot fot datatype
+        t := ast[astPointer]; // Operator 
+        astPointer := astPointer + 1;
+        if (t = TOK_MINUS) {
+            printc('-');
+        }
+        printc(' ');
+        parse_print_ast_rec(ast, astPointer);
+    } else if (nodeType = NODE_VAR_EXPR) {
+        astPointer := astPointer + 1; // Skip slot fot datatype
+        parse_print_ast_rec(ast, astPointer);   
+    }
+
+    printc(')');
+}
+
+proc parse_print_ast(ref ast: DataArray) {
+    var astPointer: int;
+
+    astPointer := 0;
+
+    parse_print_ast_rec(ast, astPointer);
+    printc('\n');
+}
+
+proc parse(ref ast: DataArray, ref tokens: DataArray) {
+    var nodeStart: int;
+    var nodeLengthPos: int;
+    var astPointer: int;
+    var tokenPointer: int;
+
+    astPointer := 0;
+    tokenPointer := 0;
+
+    NODE(NODE_STMT_LIST)
+    RESERVE_NODE_LENGTH
+
+    while (CURR_TOK # TOK_EOF) {
+        parse_global(ast, astPointer, tokens, tokenPointer);
+    }
+
+    WRITE_NODE_LENGTH
+}

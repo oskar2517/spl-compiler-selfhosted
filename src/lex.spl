@@ -1,0 +1,531 @@
+#define TOK_IDENT    0
+#define TOK_INT      1
+#define TOK_IF       2
+#define TOK_ELSE     3
+#define TOK_WHILE    4
+#define TOK_ARRAY    5
+#define TOK_OF       6
+#define TOK_PROC     7
+#define TOK_REF      8
+#define TOK_TYPE     9
+#define TOK_VAR      10
+#define TOK_LPAREN   11
+#define TOK_RPAREN   12
+#define TOK_LBRACK   13
+#define TOK_RBRACK   14
+#define TOK_LCURL    15
+#define TOK_RCURL    16
+#define TOK_EQUAL    17
+#define TOK_HASH     18
+#define TOK_LT       19
+#define TOK_LTE      20
+#define TOK_GT       21
+#define TOK_GTE      22
+#define TOK_PLUS     23
+#define TOK_MINUS    24
+#define TOK_ASTERISK 25
+#define TOK_SLASH    26
+#define TOK_COLON    27
+#define TOK_SEMIC    28
+#define TOK_COMMA    29
+#define TOK_ASSGN    30
+#define TOK_EOF      31
+#define TOK_ILLEGAL  32
+
+#define NEXT_CHAR charPointer := charPointer + 1;
+#define TOKEN(type) tokens[tokenPointer] := type; tokenPointer := tokenPointer + 1;
+#define K_MATCH(i, c) if (input[charPointer + (i)] = c)
+
+#define CURR_TOK tokens[tokenPointer]
+
+#define CHAR_TO_INT(c) ((c) - 0x30)
+
+proc lex_is_whitespace(c: int, ref r: int) {
+    var space: int;
+    var lineFeed: int;
+    var carriageReturn: int;
+    var horizontalTab: int;
+
+    r := 0;
+
+    if (c = ' ') {
+        r := 1;
+    }
+
+    if (c = 0xA) { // Line feed
+        r := 1;
+    }
+
+    if (c = 0xD) { // Carriage return
+        r := 1;
+    }
+
+    if (c = 0x9) {
+        r := 1;
+    }
+}
+
+proc lex_is_digit(c: int, ref r: int) {
+    r := 0;
+
+    if (c >= 0x30) {
+        if (c <= 0x39) {
+            r := 1;
+        } 
+    }
+}
+
+proc lex_is_alphanumeric_or_underscore(c: int, ref r: int) {
+    r := 0;
+
+    lex_is_digit(c, r);
+
+    if (c >= 0x41) {
+        if (c <= 0x5A) {
+            r := 1;
+        }
+    }
+    
+    if (c >= 0x61) {
+        if (c <= 0x7A) {
+            r := 1;
+        }
+    }
+
+    if (c = '_') {
+        r := 1;
+    }
+}
+
+proc lex_hex_to_int(c: int, ref r: int) {
+    r := -1;
+
+    if (c >= 'a') {
+        if (c <= 'f') {
+            r := c - 87;
+        }
+    }
+
+    if (c >= 'A') {
+        if (c <= 'F') {
+            r := c - 55;
+        }
+    }
+
+    if (c >= '0') {
+        if (c <= '9') {
+            r := CHAR_TO_INT(c);
+        } 
+    }
+}
+
+proc lex_eat_whitespace(ref input: DataArray, ref charPointer: int) {
+    var isWhitespace: int;
+
+    lex_is_whitespace(input[charPointer], isWhitespace);
+
+    while (isWhitespace # 0) {
+        NEXT_CHAR
+        lex_is_whitespace(input[charPointer], isWhitespace);
+    }
+}
+
+proc lex_eat_comment(ref input: DataArray, ref charPointer: int) {
+    var continue: int;
+
+    continue := 1;
+
+    if (input[charPointer] = '/') {
+        if (input[charPointer + 1] = '/') {
+            while (continue # 0) {
+                NEXT_CHAR
+                continue := 0;
+                if (input[charPointer] # 0xA) { // Line feed
+                    if (input[charPointer] # 0) { // Not EOF
+                        continue := 1;
+                    }
+                }
+            }
+
+            lex_eat_whitespace(input, charPointer);
+            lex_eat_comment(input, charPointer);
+        }
+    }
+}
+
+proc lex_read_ident(ref input: DataArray, ref charPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var startIndex: int;
+    var isCurrentCharAlphaOrUnderscore: int;
+    var length: int;
+
+    startIndex := charPointer;
+
+    lex_is_alphanumeric_or_underscore(input[charPointer], isCurrentCharAlphaOrUnderscore);
+
+    while (isCurrentCharAlphaOrUnderscore # 0) {
+        NEXT_CHAR
+        lex_is_alphanumeric_or_underscore(input[charPointer], isCurrentCharAlphaOrUnderscore); 
+    }
+
+    length := charPointer - startIndex;
+
+    tokens[tokenPointer] := length;
+    tokenPointer := tokenPointer + 1;
+    array_cpy(input, tokens, startIndex, length, tokenPointer);
+    tokenPointer := tokenPointer + length;
+
+    charPointer := charPointer - 1;
+}
+
+proc lex_read_char_lit(ref input: DataArray, ref charPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var readChar: int;
+
+    NEXT_CHAR // Skip first single quote
+
+    // 0x5C = backslash
+    if (input[charPointer] = 0x5C) { 
+        if (input[charPointer + 1] = 'n') {
+            NEXT_CHAR
+            readChar := '\n';
+        } else {
+            readChar := 0x5C; // backslash character
+        }
+    } else {
+        readChar := input[charPointer];
+    }
+
+    NEXT_CHAR
+    if (input[charPointer] # 0x27) { // 0x27 = ' (single quote)
+        PC('E', 'r', 'r', 'o', 'r', ':', ' ', 'E', 'x', 'p', 'e', 'c', 't', 'e', 'd', ' ', 'c', 'l', 'o', 's', 'i', 'n', 'g', ' ', 's', 'i', 'n', 'g', 'l', 'e', ' ', 'q', 'u', 'o', 't', 'e', '\n')
+        exit(); // LEXER ERROR: Expected closing single quote
+    }
+
+    tokens[tokenPointer] := readChar;
+    tokenPointer := tokenPointer + 1;
+}
+
+proc lex_read_decimal_int(ref input: DataArray, ref charPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var parsed: int;
+    var isDigit: int;
+
+    parsed := CHAR_TO_INT(input[charPointer]);
+    
+    NEXT_CHAR
+    lex_is_digit(input[charPointer], isDigit);
+
+    while (isDigit # 0) {
+        parsed := parsed * 10 + CHAR_TO_INT(input[charPointer]);
+        NEXT_CHAR
+        lex_is_digit(input[charPointer], isDigit); 
+    }
+
+    charPointer := charPointer - 1;
+
+    tokens[tokenPointer] := parsed;
+    tokenPointer := tokenPointer + 1;
+}
+
+proc lex_read_hex_int(ref input: DataArray, ref charPointer: int, ref tokens: DataArray, ref tokenPointer: int) {
+    var parsed: int;
+    var decimal: int;
+
+    parsed := 0;
+
+    // Skip 0x
+    NEXT_CHAR
+    NEXT_CHAR
+
+    lex_hex_to_int(input[charPointer], decimal);
+
+    if (decimal = -1) {
+        PC('E', 'r', 'r', 'o', 'r', ':', ' ', 'E', 'x', 'p', 'e', 'c', 't', 'e', 'd', ' ', 'n', 'u', 'm', 'b', 'e', 'r', ' ', 'l', 'i', 't', 'e', 'r', 'a', 'l', '\n')
+        exit(); // LEXER ERROR: Expected number literal
+    }
+
+    while (decimal # -1) {
+        parsed := parsed * 16 + decimal;
+        NEXT_CHAR
+        lex_hex_to_int(input[charPointer], decimal);
+    }
+
+    charPointer := charPointer - 1;
+
+    tokens[tokenPointer] := parsed;
+    tokenPointer := tokenPointer + 1;
+}
+
+
+proc lex_match_keyword(ref input: DataArray, ref charPointer: int, ref keyword: int) {
+    var isEnd: int;
+
+    keyword := -1;
+    
+    K_MATCH(0, 'i') K_MATCH(1, 'f')  {   
+        lex_is_alphanumeric_or_underscore(input[charPointer + 2], isEnd);
+        if (isEnd = 0) {
+            charPointer := charPointer + 1;
+            keyword := TOK_IF;
+        }
+    }
+
+    K_MATCH(0, 'e') K_MATCH(1, 'l') K_MATCH(2, 's') K_MATCH(3, 'e') {
+        lex_is_alphanumeric_or_underscore(input[charPointer + 4], isEnd);
+        if (isEnd = 0) {
+            charPointer := charPointer + 3;
+            keyword := TOK_ELSE;
+        }
+    }
+
+    K_MATCH(0, 'w') K_MATCH(1, 'h') K_MATCH(2, 'i') K_MATCH(3, 'l') K_MATCH(4, 'e') {
+        lex_is_alphanumeric_or_underscore(input[charPointer + 5], isEnd);
+        if (isEnd = 0) {
+            charPointer := charPointer + 4;
+            keyword := TOK_WHILE;
+        }
+    }
+
+    K_MATCH(0, 'a') K_MATCH(1, 'r') K_MATCH(2, 'r') K_MATCH(3, 'a') K_MATCH(4, 'y')  {
+        lex_is_alphanumeric_or_underscore(input[charPointer + 5], isEnd);
+        if (isEnd = 0) {
+            charPointer := charPointer + 4;
+            keyword := TOK_ARRAY;
+        }
+    }
+
+    K_MATCH(0, 'o') K_MATCH(1, 'f') {
+        lex_is_alphanumeric_or_underscore(input[charPointer + 2], isEnd);
+        if (isEnd = 0) {
+            charPointer := charPointer + 1;
+            keyword := TOK_OF;
+        }
+    }
+
+    K_MATCH(0, 'p') K_MATCH(1, 'r') K_MATCH(2, 'o') K_MATCH(3, 'c') {     
+        lex_is_alphanumeric_or_underscore(input[charPointer + 4], isEnd);
+        if (isEnd = 0) {   
+            charPointer := charPointer + 3;
+            keyword := TOK_PROC;
+        }
+    }
+
+    K_MATCH(0, 'r') K_MATCH(1, 'e') K_MATCH(2, 'f'){
+        lex_is_alphanumeric_or_underscore(input[charPointer + 3], isEnd);
+        if (isEnd = 0) {
+            charPointer := charPointer + 2;
+            keyword := TOK_REF;
+        }
+    }
+
+    K_MATCH(0, 't') K_MATCH(1, 'y') K_MATCH(2, 'p') K_MATCH(3, 'e') {
+        lex_is_alphanumeric_or_underscore(input[charPointer + 4], isEnd);
+        if (isEnd = 0) {
+            charPointer := charPointer + 3;
+            keyword := TOK_TYPE;
+        }
+    }
+
+    K_MATCH(0, 'v') K_MATCH(1, 'a') K_MATCH(2, 'r') {
+        lex_is_alphanumeric_or_underscore(input[charPointer + 3], isEnd);
+        if (isEnd = 0) {
+            charPointer := charPointer + 2;
+            keyword := TOK_VAR;
+        }
+    }
+}
+
+proc lex(ref tokens: DataArray, ref tokenPointer: int, ref input: DataArray, inputLength: int) {
+    var charPointer: int;
+    var currentChar: int;
+    var peekChar: int;
+    var isDigit: int;
+    var isAlphaOrUnderscore: int;
+    var matchedKeyword: int;
+
+    charPointer := 0;
+    tokenPointer := 0;
+
+    while (charPointer < inputLength) {
+        lex_eat_whitespace(input, charPointer);
+        lex_eat_comment(input, charPointer);
+
+        currentChar := input[charPointer];
+        peekChar := input[charPointer + 1];
+
+        lex_is_digit(currentChar, isDigit);
+        lex_is_alphanumeric_or_underscore(currentChar, isAlphaOrUnderscore);
+        
+        if (currentChar = ';') {
+            TOKEN(TOK_SEMIC)
+        } else if (currentChar = ',') {
+            TOKEN(TOK_COMMA)
+        } else if (currentChar = '(') {
+            TOKEN(TOK_LPAREN)
+        } else if (currentChar = ')') {
+            TOKEN(TOK_RPAREN)
+        } else if (currentChar = '{') {
+            TOKEN(TOK_LCURL)
+        } else if (currentChar = '}') {
+            TOKEN(TOK_RCURL)
+        } else if (currentChar = '[') {
+            TOKEN(TOK_LBRACK)
+        } else if (currentChar = ']') {
+            TOKEN(TOK_RBRACK)
+        } else if (currentChar = '+') {
+            TOKEN(TOK_PLUS)
+        } else if (currentChar = '-') {
+            TOKEN(TOK_MINUS)
+        } else if (currentChar = '*') {
+            TOKEN(TOK_ASTERISK)
+        } else if (currentChar = '/') {
+            TOKEN(TOK_SLASH)
+        } else if (currentChar = '=') {
+            TOKEN(TOK_EQUAL)
+        } else if (currentChar = '#') {
+            TOKEN(TOK_HASH)
+        } else if (currentChar = 0) { // TODO: This should not be necessary but it is
+            TOKEN(TOK_EOF)
+        } else if (currentChar = ':') {
+            if (peekChar = '=') {
+                NEXT_CHAR
+                TOKEN(TOK_ASSGN)
+            } else {
+                TOKEN(TOK_COLON)
+            }
+        } else if (currentChar = '<') {
+            if (peekChar = '=') {
+                NEXT_CHAR
+                TOKEN(TOK_LTE)
+            } else {
+                TOKEN(TOK_LT)
+            }
+        } else if (currentChar = '>') {
+            if (peekChar = '=') {
+                NEXT_CHAR
+                TOKEN(TOK_GTE)
+            } else {
+                TOKEN(TOK_GT)
+            }
+        } else if (currentChar = 0x27) { // 0x27 = ' (single quote)
+            TOKEN(TOK_INT)
+            lex_read_char_lit(input, charPointer, tokens, tokenPointer);
+        } else if (isDigit # 0) {
+            TOKEN(TOK_INT)
+            if (currentChar = '0') {
+                if (peekChar = 'x') {
+                    lex_read_hex_int(input, charPointer, tokens, tokenPointer);
+                } else {
+                    lex_read_decimal_int(input, charPointer, tokens, tokenPointer);
+                }
+            } else {
+                lex_read_decimal_int(input, charPointer, tokens, tokenPointer);
+            }
+        } else if (isAlphaOrUnderscore # 0) {
+            lex_match_keyword(input, charPointer, matchedKeyword);
+
+            if (matchedKeyword # -1) {
+                TOKEN(matchedKeyword)
+            } else {
+                TOKEN(TOK_IDENT)
+                lex_read_ident(input, charPointer, tokens, tokenPointer);
+            }
+        } else {
+            TOKEN(TOK_ILLEGAL)
+        }
+
+        NEXT_CHAR
+    }
+
+    TOKEN(TOK_EOF)
+}
+
+proc lex_print_tokens(ref tokens: DataArray, tokenPointer: int) {
+    var head: int;
+    var i: int;
+    var t: int;
+
+    i := 0;
+
+    while (i < tokenPointer) {
+        head := tokens[i];
+
+        if (head = TOK_IDENT) {
+            PC('I', 'D', 'E', 'N', 'T', ' ')
+            i := i + 1;
+            t := i + tokens[i];
+            while (i < t) {
+                printc(tokens[i + 1]);
+                i := i + 1;
+            }
+        } else if (head = TOK_INT) {
+            PC('I', 'N', 'T')
+            printi(tokens[i + 1]);
+            i := i + 1;
+        } else if (head = TOK_IF) {
+            PC('I', 'F')
+        } else if (head = TOK_ELSE) {
+            PC('E', 'L', 'S', 'E')
+        } else if (head = TOK_WHILE) {
+            PC('W', 'H', 'I', 'L', 'E')
+        } else if (head = TOK_ARRAY) {
+            PC('A', 'R', 'R', 'A', 'Y')
+        } else if (head = TOK_OF) {
+            PC('O', 'F')
+        } else if (head = TOK_PROC) {
+            PC('P', 'R', 'O', 'C')
+        } else if (head = TOK_REF) {
+            PC('R', 'E', 'F')
+        } else if (head = TOK_TYPE) {
+            PC('T', 'Y', 'P', 'E')
+        } else if (head = TOK_VAR) {
+            PC('V', 'A', 'R')
+        } else if (head = TOK_LPAREN) {
+            PC('L', 'P', 'A', 'R', 'E', 'N')
+        } else if (head = TOK_RPAREN) {
+            PC('R', 'P', 'A', 'R', 'E', 'N')
+        } else if (head = TOK_LBRACK) {
+            PC('L', 'B', 'R', 'A', 'C', 'K')
+        } else if (head = TOK_RBRACK) {
+            PC('R', 'B', 'R', 'A', 'C', 'K')
+        } else if (head = TOK_LCURL) {
+            PC('L', 'C', 'U', 'R', 'L')
+        } else if (head = TOK_RCURL) {
+            PC('R', 'C', 'U', 'R', 'L')
+        } else if (head = TOK_EQUAL) {
+            PC('E', 'Q', 'U', 'A', 'L')
+        } else if (head = TOK_HASH) {
+            PC('H', 'A', 'S', 'H')
+        } else if (head = TOK_LT) {
+            PC('L', 'T')
+        } else if (head = TOK_LTE) {
+            PC('L', 'T', 'E')
+        } else if (head = TOK_GT) {
+            PC('G', 'T')
+        } else if (head = TOK_GTE) {
+            PC('G', 'T', 'E')
+        } else if (head = TOK_PLUS) {
+            PC('P', 'L', 'U', 'S')
+        } else if (head = TOK_MINUS) {
+            PC('M', 'I', 'N', 'U', 'S')
+        } else if (head = TOK_ASTERISK) {
+            PC('A', 'S', 'T', 'E', 'R', 'I', 'S', 'K')
+        } else if (head = TOK_SLASH) {
+            PC('S', 'L', 'A', 'S', 'H')
+        } else if (head = TOK_COLON) {
+            PC('C', 'O', 'L', 'O', 'N')
+        } else if (head = TOK_SEMIC) {
+            PC('S', 'E', 'M', 'I', 'C')
+        } else if (head = TOK_COMMA) {
+            PC('C', 'O', 'M', 'M', 'A')
+        } else if (head = TOK_ASSGN) {
+            PC('A', 'S', 'S', 'G', 'N')
+        } else if (head = TOK_EOF) {
+            PC('E', 'O', 'F')
+        } else if (head = TOK_ILLEGAL) {
+            PC('I', 'L', 'L', 'E', 'G', 'A', 'L')
+        }
+
+        printc('\n');
+
+        i := i + 1;
+    }
+}

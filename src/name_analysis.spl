@@ -1,0 +1,352 @@
+proc name_analysis_type_decl(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    ref tablePointer: int, 
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var identLength: int;
+    var identStart: int;
+    var typeIndex: int;
+    var entryStart: int;
+    var mapFound: int;
+    var mapValue: int;
+
+    identLength := ast[astPointer];
+    astPointer := astPointer + 1;
+    identStart := astPointer;
+    astPointer := astPointer + identLength; // Skip ident data
+
+    typeIndex := astPointer
+        + 1  // Node type
+        + 1; // Node length
+        
+    name_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+
+    entryStart := entryPointer;
+    ENTRIES_W(SYM_TAB_ENTRY_TYPE)
+    ENTRIES_W(SPL_TYPE_REF)
+    ENTRIES_W(ast[typeIndex]);
+
+    hashmap_cpy_key(ast, keyBuf, identStart, identLength);
+    symbol_table_enter(GLOBAL_TABLE, keyBuf, identLength, entryStart);
+}
+
+proc name_analysis_named_type_expr(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    ref tablePointer: int, 
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var typeSlot: int;
+    var identLength: int;
+    var mapFound: int;
+    var mapValue: int;
+
+    typeSlot := astPointer; // Save index of slot reserved for type
+    astPointer := astPointer + 1; // Skip slot reserved for type
+
+    identLength := ast[astPointer]; // Length of ident
+    astPointer := astPointer + 1; // Skip length of ident
+    hashmap_cpy_key(ast, keyBuf, astPointer, identLength);
+    astPointer := astPointer + identLength; // Skip ident data
+    symbol_table_lookup(symbolTables, tablePointer, keyBuf, identLength, mapFound, mapValue);
+
+    if (mapFound # 1) {
+        PC('E', 'r', 'r', 'o', 'r', ':', ' ', 'U', 'n', 'd', 'e', 'f', 'i', 'n', 'e', 'd', ' ', 't', 'y', 'p', 'e', ' ', '(')
+        hash_map_print_key(keyBuf, identLength);
+        PC(')', '\n')
+        exit(); // ERROR: Undefined type
+    }
+
+    if (entries[mapValue] # SYM_TAB_ENTRY_TYPE) {
+        PC('E', 'r', 'r', 'o', 'r', ':', ' ', 'N', 'o', 't', ' ', 'a', ' ', 't', 'y', 'p', 'e', ' ', '(')
+        hash_map_print_key(keyBuf, identLength);
+        PC(')', '\n')
+        exit(); // Error: Not a type
+    }
+
+    ast[typeSlot] := mapValue + 1; // Actual type follows entry type (SYM_TAB_ENTRY_TYPE, <type head>, <type data>)
+} 
+
+proc name_analysis_arr_type_expr(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    ref tablePointer: int, 
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var typeSlot: int;
+    var arrSize: int;
+    var subTypeIndex: int;
+
+    typeSlot := astPointer; // Save index of slot reserved for type
+    astPointer := astPointer + 1; // Skip slot reserved for type
+
+    arrSize := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    subTypeIndex := astPointer
+        + 1  // Node type
+        + 1; // Node length
+
+    name_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf); // Analyze base type
+
+    ast[typeSlot] := entryPointer;
+    ENTRIES_W(SPL_TYPE_ARRAY)
+    ENTRIES_W(arrSize)
+    ENTRIES_W(SPL_TYPE_REF)
+    ENTRIES_W(ast[subTypeIndex]) // Index of sub type
+}
+
+proc name_analysis_var_decl(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    ref tablePointer: int, 
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var nameStart: int;
+    var nameLen: int;
+    var typeIndex: int;
+    var entryStart: int;
+
+    nameLen := ast[astPointer];
+    astPointer := astPointer + 1;
+    nameStart := astPointer;
+    astPointer := astPointer + nameLen;
+
+    typeIndex := astPointer
+        + 1  // Node type
+        + 1; // Node length
+
+    name_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+
+    entryStart := entryPointer;
+    ENTRIES_W(SYM_TAB_ENTRY_VAR)
+    ENTRIES_W(0) // is not reference
+    ENTRIES_W(SPL_TYPE_REF)
+    ENTRIES_W(ast[typeIndex]);
+    ENTRIES_W(0) // Slot for variable position (register/stack offset)
+    ENTRIES_W(0) // Slot for variable position (register/stack offset)
+
+    hashmap_cpy_key(ast, keyBuf, nameStart, nameLen);
+    symbol_table_enter(CURRENT_TABLE, keyBuf, nameLen, entryStart);
+}
+
+proc name_analysis_param_decl(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    ref tablePointer: int, 
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var nameStart: int;
+    var nameLen: int;
+    var typeIndex: int;
+    var entryStart: int;
+    var isReference: int;
+    var dataType: int;
+    var resolvedType: int;
+
+    dataType := astPointer;
+    astPointer := astPointer + 1;
+
+    isReference := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    nameLen := ast[astPointer];
+    astPointer := astPointer + 1;
+    nameStart := astPointer;
+    astPointer := astPointer + nameLen;
+
+    typeIndex := astPointer
+        + 1  // Node type
+        + 1; // Node length
+
+    name_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+
+    resolve_type_ref(ast[typeIndex], entries, resolvedType);
+
+    if (entries[resolvedType] = SPL_TYPE_ARRAY) {
+        if (isReference # 1) {
+            PC('E', 'r', 'r', 'o', 'r', ':', ' ', 'P', 'a', 'r', 'a', 'm', 'e', 't', 'e', 'r', ' ', '(')
+            array_print(ast, nameStart, nameLen);
+            PC(')', ' ', 'm', 'u', 's', 't', ' ', 'b', 'e', ' ', 'a', ' ', 'r', 'e', 'f', 'e', 'r', 'e', 'n', 'c', 'e', '\n')
+            exit(); // Error: Must be a reference parameter
+        }
+    }
+
+    ast[dataType] := ast[typeIndex];
+
+    entryStart := entryPointer;
+    ENTRIES_W(SYM_TAB_ENTRY_VAR)
+    ENTRIES_W(isReference)
+    ENTRIES_W(SPL_TYPE_REF)
+    ENTRIES_W(ast[typeIndex]);
+    ENTRIES_W(0) // Slot for variable position (register/stack offset)
+    ENTRIES_W(0) // Slot for variable position (register/stack offset)
+
+    hashmap_cpy_key(ast, keyBuf, nameStart, nameLen);
+    symbol_table_enter(CURRENT_TABLE, keyBuf, nameLen, entryStart);
+}
+
+proc name_analysis_proc_decl(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    ref tablePointer: int, 
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var procNameStart: int;
+    var procNameLen: int;
+    var paramTypes: DataArray;
+    var paramTypesPointer: int;
+    var typeIndex: int;
+    var isReference: int;
+    var paramCounter: int;
+    var entryStart: int;
+
+    tablePointer := tablePointer + 1;
+
+    paramCounter := 0;
+    paramTypesPointer := 1; // first element reserved for parameter count
+
+    procNameLen := ast[astPointer];
+    astPointer := astPointer + 1;
+    procNameStart := astPointer;
+    astPointer := astPointer + procNameLen;
+
+    astPointer := astPointer + 1 + 1; // Skip param decl list header and length
+    while (ast[astPointer] = NODE_PARAM_DECL) {
+        astPointer := astPointer + 2; // Skip param decl header and length
+        typeIndex := astPointer;
+        isReference := ast[astPointer + 1];
+
+        name_analysis_param_decl(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+
+        paramTypes[paramTypesPointer] := isReference;
+        paramTypes[paramTypesPointer + 1] := 0; // Slot for parameter position (register/stack offset)
+        paramTypes[paramTypesPointer + 2] := 0; // Slot for parameter position (register/stack offset)
+        paramTypes[paramTypesPointer + 3] := SPL_TYPE_REF;
+        paramTypes[paramTypesPointer + 4] := ast[typeIndex]; // Data type of parameter declaration
+        paramTypesPointer := paramTypesPointer + 5;
+        paramCounter := paramCounter + 1;
+    }
+    paramTypes[0] := paramCounter;
+
+    astPointer := astPointer + 1 + 1; // Skip var decl list header and length
+    while (ast[astPointer] = NODE_VAR_DECL) {
+        astPointer := astPointer + 2; // Skip var decl header and length
+        name_analysis_var_decl(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    }
+
+    entryStart := entryPointer;
+    ENTRIES_W(SYM_TAB_ENTRY_PROC)
+    ENTRIES_W(tablePointer)
+
+    array_cpy(paramTypes, entries, 0, paramTypesPointer, entryPointer); // Copy parameter types
+    entryPointer := entryPointer + paramTypesPointer;
+
+    ENTRIES_W(0) // Local Variable Area Size
+    ENTRIES_W(0) // Argument Area Size
+    ENTRIES_W(0) // Outgoing Area Size
+
+    hashmap_cpy_key(ast, keyBuf, procNameStart, procNameLen);
+    symbol_table_enter(GLOBAL_TABLE, keyBuf, procNameLen, entryStart);
+
+    SKIP_NODE // Skip statements
+}
+
+proc name_analysis_check_main(ref table: HashMap, ref entries: DataArray) {
+    var keyBuf: HashMapKeyBuffer;
+    var found: int;
+    var value: int;
+    var parametersCount: int;
+
+    keyBuf[0] := 'm';
+    keyBuf[1] := 'a';
+    keyBuf[2] := 'i';
+    keyBuf[3] := 'n';
+
+    hashmap_get_str(table, keyBuf, 4, found, value);
+
+    if (found # 1) {
+        PC('E', 'r', 'r', 'o', 'r', ':', ' ', 'M', 'a', 'i', 'n', ' ', 'p', 'r', 'o', 'c', 'e', 'd', 'u', 'r', 'e', ' ', 'm', 'i', 's', 's', 'i', 'n', 'g', '\n')
+        exit(); // Error: Main procedure missing
+    }
+
+    if (entries[value] # SYM_TAB_ENTRY_PROC) {
+        PC('E', 'r', 'r', 'o', 'r', ':', ' ', 'M', 'a', 'i', 'n', ' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'a', ' ', 'p', 'r', 'o', 'c', 'e', 'd', 'u', 'r', 'e', '\n')
+        exit(); // Error: Main is not a procedure
+    }
+
+    if (entries[value + 2] # 0) {
+        PC('E', 'r', 'r', 'o', 'r', ':', ' ', 'M', 'a', 'i', 'n', ' ', 'm', 'u', 's', 't', ' ', 'n', 'o', 't', ' ', 'h', 'a', 'v', 'e', ' ', 'p', 'a', 'r', 'a', 'm', 'e', 't', 'e', 'r', 's', '\n')
+        exit(); // Error: Main must not have parameters
+    }
+}
+
+proc name_analysis_rec(
+    ref ast: DataArray, 
+    ref astPointer: int, 
+    ref symbolTables: SymbolTables, 
+    ref tablePointer: int, 
+    ref entries: DataArray,
+    ref entryPointer: int,
+    ref keyBuf: HashMapKeyBuffer
+) {
+    var nodeType: int;
+    var nodeLength: int;
+    var t: int;
+   
+    nodeType := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    nodeLength := ast[astPointer];
+    astPointer := astPointer + 1;
+
+    if (nodeType = NODE_TYPE_DECL) {
+        name_analysis_type_decl(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    } else if (nodeType = NODE_NAMED_TYPE_EXPR) {
+        name_analysis_named_type_expr(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    } else if (nodeType = NODE_ARR_TYPE_EXPR) {
+        name_analysis_arr_type_expr(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    } else if (nodeType = NODE_PROC_DECL) {
+        name_analysis_proc_decl(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+    } else if (nodeType = NODE_STMT_LIST) {
+        t := astPointer;
+        while (astPointer < t + nodeLength) {
+            name_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
+        }
+    } else {
+        PC('I', 'n', 't', 'e', 'r', 'n', 'a', 'l', ' ', 'E', 'r', 'r', 'o', 'r', ':', ' ', 'I', 'l', 'l', 'e', 'g', 'a', 'l', ' ', 'n', 'o', 'd', 'e', ' ', 't', 'y', 'p', 'e', ' ', 'h', 'e', 'a', 'd', '\n')
+        exit(); // INTERNAL ERROR: Unexpected type
+    }
+}
+
+proc name_analysis(ref ast: DataArray, ref symbolTables: SymbolTables, ref symbolTableEntries: DataArray, ref entryPointer: int) {
+    var astPointer: int;
+    var keyBuf: HashMapKeyBuffer;
+    var tablePointer: int;
+
+    astPointer := 0;
+    tablePointer := 0;
+
+    name_analysis_rec(ast, astPointer, symbolTables, tablePointer, symbolTableEntries, entryPointer, keyBuf);
+
+    name_analysis_check_main(GLOBAL_TABLE, symbolTableEntries);
+}
