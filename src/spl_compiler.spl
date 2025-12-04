@@ -20,13 +20,13 @@ proc read_input(ref input: DataArray, ref length: int) {
     input[0] := char;
 
     index := 1;
-    while (char # 0x40) { // Input file must end with at (0x40) to indicate EOF
+    while (char # 0x40) { // Input file must end with `at` (0x40) to indicate EOF
         readc(char);
         input[index] := char;
         index := index + 1;
     }
 
-    // Replace dot (0x2E) with 0 to indicate EOF
+    // Replace `at` (0x40) with 0 to indicate EOF
     input[index - 1] := 0;
     length := index - 1;
 }

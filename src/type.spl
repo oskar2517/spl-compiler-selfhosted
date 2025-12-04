@@ -6,13 +6,14 @@
 #define SPL_TYPE_INT_INDEX 2 // This is the index at which the int type is stored in the entries array. It is important to update it if the table initialization order changes!!
 #define SPL_TYPE_BOOL_INDEX 0
 
+#define ENTRIES_W(v) entries[entryPointer] := v; entryPointer := entryPointer + 1;
+#define ENTRIES_R(t) t := entries[entryPointer]; entryPointer := entryPointer + 1;
+
 proc print_type(ref entries: DataArray, ref entryPointer: int) {
     var head: int;
     var t: int;
 
-    head := entries[entryPointer];
-
-    entryPointer := entryPointer + 1;
+    ENTRIES_R(head)
 
     if (head = SPL_TYPE_INT) {
         PC('i', 'n', 't');
@@ -40,12 +41,12 @@ proc print_procedure_type(ref entries: DataArray, ref entryPointer: int) {
     var parameterCount: int;
     var isReference: int;
 
-    parameterCount := entries[entryPointer];
-    entryPointer := entryPointer + 1;
+    ENTRIES_R(parameterCount)
+
     i := 0;
     while (i < parameterCount) {
-        isReference := entries[entryPointer];
-        entryPointer := entryPointer + 1;
+        ENTRIES_R(isReference)
+
         entryPointer := entryPointer + 2; // Skip parameter location (register/stack offset)
 
         if (isReference # 0) {

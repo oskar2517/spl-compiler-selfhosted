@@ -11,8 +11,6 @@
 #define VAR_ENTRY_IS_REFERENCE entries[varEntryIndex + 1]
 #define VAR_ENTRY_TYPE_INDEX varEntryIndex + 2
 
-#define ENTRIES_W(v) entries[entryPointer] := v; entryPointer := entryPointer + 1;
-
 type SymbolTables = array[MAX_SYMBOL_TABLES] of HashMap;
 
 proc symbol_table_lookup(
@@ -33,7 +31,6 @@ proc symbol_table_lookup(
 proc symbol_table_enter(ref table: HashMap, ref keyBuf: HashMapKeyBuffer, keyLen: int, value: int) {
     var found: int;
     var result: int;
-
 
     hashmap_get_str(table, keyBuf, keyLen, found, result);
 

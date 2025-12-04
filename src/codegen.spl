@@ -3,6 +3,8 @@
 #define NEXT_REGISTER currReg := currReg + 1;
 #define PREV_REGISTER currReg := currReg - 1;
 
+#define NEXT_LABEL(l) l := currLabel; currLabel := currLabel + 1;
+
 #define BRACK(x) PC('[') x PC(']')
 #define QWORD(x) PC('q', 'w', 'o', 'r', 'd', ' ') x
 
@@ -124,10 +126,7 @@ proc codegen_param_decl_list(
     while (ast[astPointer] = NODE_PARAM_DECL) {
         astPointer := astPointer + 4; // Skip head, length, datatype, isReference
 
-        varNameLen := ast[astPointer];
-        astPointer := astPointer + 1;
-        varNameStart := astPointer;
-        astPointer := astPointer + varNameLen;
+        READ_IDENT(varNameStart, varNameLen)
 
         SKIP_NODE // Skip type expresssion
 
@@ -165,10 +164,7 @@ proc codegen_proc_decl(
     var paramCount: int;
     var localTablePointer: int;
 
-    procNameLen := ast[astPointer];
-    astPointer := astPointer + 1;
-    procNameStart := astPointer;
-    astPointer := astPointer + procNameLen;
+    READ_IDENT(procNameStart, procNameLen)
 
     hashmap_cpy_key(ast, keyBuf, procNameStart, procNameLen);
     symbol_table_lookup(symbolTables, 0, keyBuf, procNameLen, procEntryFound, procEntryIndex);
@@ -256,8 +252,7 @@ proc codegen_int_lit(
     var value: int;
 
     astPointer := astPointer + 1; // Skip slot for datatype
-    value := ast[astPointer];
-    astPointer := astPointer + 1;
+    AST_R(value)
 
     NEXT_REGISTER
 
@@ -281,10 +276,7 @@ proc codegen_named_var(
 
     astPointer := astPointer + 1; // Skip slot for datatype
 
-    varNameLen := ast[astPointer];
-    astPointer := astPointer + 1;
-    varNameStart := astPointer;
-    astPointer := astPointer + varNameLen;
+    READ_IDENT(varNameStart, varNameLen)
 
     hashmap_cpy_key(ast, keyBuf, varNameStart, varNameLen);
     symbol_table_lookup(symbolTables, tablePointer, keyBuf, varNameLen, varEntryFound, varEntryIndex);
@@ -313,8 +305,7 @@ proc codegen_bin_expr(
 
     codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel); // left
 
-    operator := ast[astPointer];
-    astPointer := astPointer + 1;
+    AST_R(operator)
 
     codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel); // right
 
@@ -366,8 +357,7 @@ proc codegen_una_expr(
 
     astPointer := astPointer + 1; // Skip slot for datatype
 
-    operator := ast[astPointer];
-    astPointer := astPointer + 1;
+    AST_R(operator)
 
     if (operator = TOK_MINUS) {
         codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
@@ -436,8 +426,7 @@ proc codegen_gen_cond(
 
     codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel); // left
 
-    operator := ast[astPointer];
-    astPointer := astPointer + 1;
+    AST_R(operator)
 
     codegen_rec(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel); // right
 
@@ -477,8 +466,7 @@ proc codegen_if_stmt(
     var label0: int;
     var label1: int;
 
-    label0 := currLabel;
-    currLabel := currLabel + 1;
+    NEXT_LABEL(label0)
 
     codegen_gen_cond(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel, label0);
 
@@ -489,8 +477,7 @@ proc codegen_if_stmt(
 
         INDENT LABEL(label0)
     } else {  
-        label1 := currLabel;
-        currLabel := currLabel + 1;
+        NEXT_LABEL(label1)
 
         INDENT JMP(print_label(label1);)
 
@@ -513,11 +500,8 @@ proc codegen_while_stmt(
     var label0: int;
     var label1: int;
 
-    label0 := currLabel;
-    currLabel := currLabel + 1;
-
-    label1 := currLabel;
-    currLabel := currLabel + 1;
+    NEXT_LABEL(label0)
+    NEXT_LABEL(label1)
 
     INDENT LABEL(label0)
 
@@ -549,10 +533,7 @@ proc codegen_call_stmt(
     var origAstPointer: int;
     var currParamIndex: int;
 
-    procNameLen := ast[astPointer];
-    astPointer := astPointer + 1;
-    procNameStart := astPointer;
-    astPointer := astPointer + procNameLen;
+    READ_IDENT(procNameStart, procNameLen)
 
     hashmap_cpy_key(ast, keyBuf, procNameStart, procNameLen);
     symbol_table_lookup(symbolTables, 0, keyBuf, procNameLen, procEntryFound, procEntryIndex);
@@ -573,7 +554,6 @@ proc codegen_call_stmt(
         }
 
         currParamIndex := j * 5;
-
 
         if (CURR_PARAM_IS_REF # 0) {
             astPointer := astPointer + 3; // Skip var expr head, length, and data type slot
@@ -614,13 +594,10 @@ proc codegen_rec(
     var nodeType: int;
     var nodeLength: int;
     var t: int;
+
+    AST_R(nodeType)
+    AST_R(nodeLength)
    
-    nodeType := ast[astPointer];
-    astPointer := astPointer + 1;
-
-    nodeLength := ast[astPointer];
-    astPointer := astPointer + 1;
-
     if (nodeType = NODE_PROC_DECL) {
         codegen_proc_decl(ast, astPointer, symbolTables, tablePointer, entries, keyBuf, currReg, currLabel);
     } else if (nodeType = NODE_CALL_STMT) {

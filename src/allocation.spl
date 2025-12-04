@@ -24,18 +24,12 @@ proc outgoing_area(
     var procNameStart: int;
     var procEntryFound: int;
     var procEntryIndex: int;
-   
-    nodeType := ast[astPointer];
-    astPointer := astPointer + 1;
 
-    nodeLength := ast[astPointer];
-    astPointer := astPointer + 1;
+    AST_R(nodeType)
+    AST_R(nodeLength)
 
     if (nodeType = NODE_CALL_STMT) {
-        procNameLen := ast[astPointer];
-        astPointer := astPointer + 1;
-        procNameStart := astPointer;
-        astPointer := astPointer + procNameLen;
+        READ_IDENT(procNameStart, procNameLen)
 
         hashmap_cpy_key(ast, keyBuf, procNameStart, procNameLen);
         symbol_table_lookup(symbolTables, 0, keyBuf, procNameLen, procEntryFound, procEntryIndex);
@@ -97,10 +91,7 @@ proc var_alloc_param_decl_list(
     while (i < paramCount) {
         astPointer := astPointer + 4; // Skip head, length, datatype, isReference
 
-        varNameLen := ast[astPointer];
-        astPointer := astPointer + 1;
-        varNameStart := astPointer;
-        astPointer := astPointer + varNameLen;
+        READ_IDENT(varNameStart, varNameLen)
 
         hashmap_cpy_key(ast, keyBuf, varNameStart, varNameLen);
         symbol_table_lookup(symbolTables, tablePointer, keyBuf, varNameLen, varEntryFound, varEntryIndex);
@@ -152,10 +143,7 @@ proc var_alloc_var_decl_list(
     while (ast[astPointer] = NODE_VAR_DECL) {
         astPointer := astPointer + 2; // Skip var decl head and length
 
-        varNameLen := ast[astPointer];
-        astPointer := astPointer + 1;
-        varNameStart := astPointer;
-        astPointer := astPointer + varNameLen;
+        READ_IDENT(varNameStart, varNameLen)
 
         SKIP_NODE // Skip type expression
 
@@ -188,10 +176,7 @@ proc var_alloc_proc_decl(
     var paramCount: int;
     var origAstPointer: int;
 
-    procNameLen := ast[astPointer];
-    astPointer := astPointer + 1;
-    procNameStart := astPointer;
-    astPointer := astPointer + procNameLen;
+    READ_IDENT(procNameStart, procNameLen)
 
     hashmap_cpy_key(ast, keyBuf, procNameStart, procNameLen);
     symbol_table_lookup(symbolTables, 0, keyBuf, procNameLen, procEntryFound, procEntryIndex);
@@ -226,12 +211,9 @@ proc var_alloc_rec(
     var nodeType: int;
     var nodeLength: int;
     var t: int;
-   
-    nodeType := ast[astPointer];
-    astPointer := astPointer + 1;
 
-    nodeLength := ast[astPointer];
-    astPointer := astPointer + 1;
+    AST_R(nodeType)
+    AST_R(nodeLength)
 
     if (nodeType = NODE_PROC_DECL) {
         var_alloc_proc_decl(ast, astPointer, symbolTables, tablePointer, entries, keyBuf);

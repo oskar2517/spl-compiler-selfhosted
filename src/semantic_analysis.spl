@@ -13,10 +13,7 @@ proc semantic_analysis_proc_decl(
     var procEntryFound: int;
     var localTablePointer: int;
 
-    procNameLen := ast[astPointer];
-    astPointer := astPointer + 1;
-    procNameStart := astPointer;
-    astPointer := astPointer + procNameLen;
+    READ_IDENT(procNameStart, procNameLen)
 
     hashmap_cpy_key(ast, keyBuf, procNameStart, procNameLen);
     symbol_table_lookup(symbolTables, 0, keyBuf, procNameLen, procEntryFound, procEntryIndex);
@@ -41,10 +38,10 @@ proc semantic_analysis_assgn_stmt(
     var targetTypeIndex: int;
     var valueTypeIndex: int;
 
-    targetTypeIndex := astPointer + 1 + 1; 
+    targetTypeIndex := NEXT_NODE_TYPE_INDEX; 
     semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf); // Assignment target
 
-    valueTypeIndex := astPointer + 1 + 1;
+    valueTypeIndex := NEXT_NODE_TYPE_INDEX;
     semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf); // Value
     
     compare_types(ast[targetTypeIndex], ast[valueTypeIndex], entries); 
@@ -67,10 +64,9 @@ proc semantic_analysis_una_expr(
     thisTypeIndex := astPointer;
     astPointer := astPointer + 1;
 
-    operator := ast[astPointer];
-    astPointer := astPointer + 1;
+    AST_R(operator)
 
-    operandType := astPointer + 1 + 1;
+    operandType := NEXT_NODE_TYPE_INDEX;
 
     semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
 
@@ -97,10 +93,7 @@ proc semantic_analysis_named_var(
     typeIndex := astPointer;
     astPointer := astPointer + 1;
 
-    nameLen := ast[astPointer];
-    astPointer := astPointer + 1;
-    nameStart := astPointer;
-    astPointer := astPointer + nameLen;
+    READ_IDENT(nameStart, nameLen)
 
     hashmap_cpy_key(ast, keyBuf, nameStart, nameLen);
     symbol_table_lookup(symbolTables, tablePointer, keyBuf, nameLen, entryFound, entryIndex);
@@ -132,7 +125,7 @@ proc semantic_analysis_int_lit(
     ref keyBuf: HashMapKeyBuffer
 ) {
     ast[astPointer] := SPL_TYPE_INT_INDEX;
-    astPointer := astPointer + 1 + 1; // Skip type slot and int value
+    astPointer := astPointer + 2; // Skip type slot and int value
 }
 
 proc semantic_analysis_arr_acc(
@@ -152,7 +145,7 @@ proc semantic_analysis_arr_acc(
     thisTypeIndex := astPointer;
     astPointer := astPointer + 1;
     
-    arrayTypeIndex := astPointer + 1 + 1;
+    arrayTypeIndex := NEXT_NODE_TYPE_INDEX;
     semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
 
     resolve_type_ref(ast[arrayTypeIndex], entries, resolvedArrayTypeIndex);
@@ -164,7 +157,7 @@ proc semantic_analysis_arr_acc(
 
     ast[thisTypeIndex] := resolvedArrayTypeIndex + 2; // Base type is at +2, +1 is array size
 
-    indexTypeIndex := astPointer + 1 + 1;
+    indexTypeIndex := NEXT_NODE_TYPE_INDEX;
     semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
     
     compare_types(ast[indexTypeIndex], SPL_TYPE_INT_INDEX, entries);
@@ -187,13 +180,12 @@ proc semantic_analysis_bin_expr(
     thisTypeIndex := astPointer;
     astPointer := astPointer + 1;
     
-    leftTypeIndex := astPointer + 1 + 1;
+    leftTypeIndex := NEXT_NODE_TYPE_INDEX;
     semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
-    
-    operator := ast[astPointer];
-    astPointer := astPointer + 1;
 
-    rightTypeIndex := astPointer + 1 + 1;
+    AST_R(operator)
+
+    rightTypeIndex := NEXT_NODE_TYPE_INDEX;
     semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
 
     compare_types(ast[leftTypeIndex], SPL_TYPE_INT_INDEX, entries);
@@ -236,7 +228,7 @@ proc semantic_analysis_if_stmt(
 ) {
     var conditionTypeIndex: int;
 
-    conditionTypeIndex := astPointer + 1 + 1;
+    conditionTypeIndex := NEXT_NODE_TYPE_INDEX;
 
     semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
 
@@ -257,7 +249,7 @@ proc semantic_analysis_while_stmt(
 ) {
     var conditionTypeIndex: int;
 
-    conditionTypeIndex := astPointer + 1 + 1;
+    conditionTypeIndex := NEXT_NODE_TYPE_INDEX;
 
     semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
 
@@ -281,7 +273,7 @@ proc semantic_analysis_var_expr(
     thisTypeIndex := astPointer;
     astPointer := astPointer + 1; // Skip type slot
 
-    childTypeIndex := astPointer + 1 + 1;
+    childTypeIndex := NEXT_NODE_TYPE_INDEX;
     semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
 
     ast[thisTypeIndex] := ast[childTypeIndex];
@@ -308,10 +300,7 @@ proc semantic_analysis_call_stmt(
     var currArgTypeIndex: int;
     var argsCountingIndex: int;
 
-    nameLen := ast[astPointer];
-    astPointer := astPointer + 1;
-    nameStart := astPointer;
-    astPointer := astPointer + nameLen;
+    READ_IDENT(nameStart, nameLen)
 
     hashmap_cpy_key(ast, keyBuf, nameStart, nameLen);
     symbol_table_lookup(symbolTables, tablePointer, keyBuf, nameLen, entryFound, entryIndex);
@@ -363,7 +352,7 @@ proc semantic_analysis_call_stmt(
             }
         }
 
-        currArgTypeIndex := astPointer + 1 + 1;
+        currArgTypeIndex := NEXT_NODE_TYPE_INDEX;
 
         semantic_analysis_rec(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
         compare_types(ast[currArgTypeIndex], currParamIndex + 3, entries);
@@ -384,12 +373,9 @@ proc semantic_analysis_rec(
     var nodeType: int;
     var nodeLength: int;
     var t: int;
-   
-    nodeType := ast[astPointer];
-    astPointer := astPointer + 1;
 
-    nodeLength := ast[astPointer];
-    astPointer := astPointer + 1;
+    AST_R(nodeType)
+    AST_R(nodeLength)
 
     if (nodeType = NODE_STMT_LIST) {
         t := astPointer;
