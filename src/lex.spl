@@ -33,19 +33,24 @@
 #define TOK_ILLEGAL  32
 
 #define NEXT_CHAR charPointer := charPointer + 1;
+#define TOKENS_W(v) tokens[tokenPointer] := v; tokenPointer := tokenPointer + 1;
+
 #define TOKEN(type) tokens[tokenPointer] := type; tokenPointer := tokenPointer + 1;
 #define K_MATCH(i, c) if (input[charPointer + (i)] = c)
+#define K_MATCH_END(i, type)                                                \
+    {                                                                       \
+        lex_is_alphanumeric_or_underscore(input[charPointer + (i)], isEnd); \
+        if (isEnd = 0) {                                                    \
+            charPointer := charPointer + (i) - 1;                           \
+            keyword := type;                                                \
+        }                                                                   \
+    }
 
 #define CURR_TOK tokens[tokenPointer]
 
 #define CHAR_TO_INT(c) ((c) - 0x30)
 
 proc lex_is_whitespace(c: int, ref r: int) {
-    var space: int;
-    var lineFeed: int;
-    var carriageReturn: int;
-    var horizontalTab: int;
-
     r := 0;
 
     if (c = ' ') {
@@ -60,7 +65,7 @@ proc lex_is_whitespace(c: int, ref r: int) {
         r := 1;
     }
 
-    if (c = 0x9) {
+    if (c = 0x9) { // Horizontal tab
         r := 1;
     }
 }
@@ -80,14 +85,14 @@ proc lex_is_alphanumeric_or_underscore(c: int, ref r: int) {
 
     lex_is_digit(c, r);
 
-    if (c >= 0x41) {
-        if (c <= 0x5A) {
+    if (c >= 'A') {
+        if (c <= 'Z') {
             r := 1;
         }
     }
     
-    if (c >= 0x61) {
-        if (c <= 0x7A) {
+    if (c >= 'a') {
+        if (c <= 'z') {
             r := 1;
         }
     }
@@ -260,77 +265,23 @@ proc lex_match_keyword(ref input: DataArray, ref charPointer: int, ref keyword: 
 
     keyword := -1;
     
-    K_MATCH(0, 'i') K_MATCH(1, 'f')  {   
-        lex_is_alphanumeric_or_underscore(input[charPointer + 2], isEnd);
-        if (isEnd = 0) {
-            charPointer := charPointer + 1;
-            keyword := TOK_IF;
-        }
-    }
+    K_MATCH(0, 'i') K_MATCH(1, 'f') K_MATCH_END(2, TOK_IF)
 
-    K_MATCH(0, 'e') K_MATCH(1, 'l') K_MATCH(2, 's') K_MATCH(3, 'e') {
-        lex_is_alphanumeric_or_underscore(input[charPointer + 4], isEnd);
-        if (isEnd = 0) {
-            charPointer := charPointer + 3;
-            keyword := TOK_ELSE;
-        }
-    }
+    K_MATCH(0, 'e') K_MATCH(1, 'l') K_MATCH(2, 's') K_MATCH(3, 'e') K_MATCH_END(4, TOK_ELSE)
 
-    K_MATCH(0, 'w') K_MATCH(1, 'h') K_MATCH(2, 'i') K_MATCH(3, 'l') K_MATCH(4, 'e') {
-        lex_is_alphanumeric_or_underscore(input[charPointer + 5], isEnd);
-        if (isEnd = 0) {
-            charPointer := charPointer + 4;
-            keyword := TOK_WHILE;
-        }
-    }
+    K_MATCH(0, 'w') K_MATCH(1, 'h') K_MATCH(2, 'i') K_MATCH(3, 'l') K_MATCH(4, 'e') K_MATCH_END(5, TOK_WHILE)
 
-    K_MATCH(0, 'a') K_MATCH(1, 'r') K_MATCH(2, 'r') K_MATCH(3, 'a') K_MATCH(4, 'y')  {
-        lex_is_alphanumeric_or_underscore(input[charPointer + 5], isEnd);
-        if (isEnd = 0) {
-            charPointer := charPointer + 4;
-            keyword := TOK_ARRAY;
-        }
-    }
+    K_MATCH(0, 'a') K_MATCH(1, 'r') K_MATCH(2, 'r') K_MATCH(3, 'a') K_MATCH(4, 'y') K_MATCH_END(5, TOK_ARRAY)
 
-    K_MATCH(0, 'o') K_MATCH(1, 'f') {
-        lex_is_alphanumeric_or_underscore(input[charPointer + 2], isEnd);
-        if (isEnd = 0) {
-            charPointer := charPointer + 1;
-            keyword := TOK_OF;
-        }
-    }
+    K_MATCH(0, 'o') K_MATCH(1, 'f') K_MATCH_END(2, TOK_OF)
 
-    K_MATCH(0, 'p') K_MATCH(1, 'r') K_MATCH(2, 'o') K_MATCH(3, 'c') {     
-        lex_is_alphanumeric_or_underscore(input[charPointer + 4], isEnd);
-        if (isEnd = 0) {   
-            charPointer := charPointer + 3;
-            keyword := TOK_PROC;
-        }
-    }
+    K_MATCH(0, 'p') K_MATCH(1, 'r') K_MATCH(2, 'o') K_MATCH(3, 'c') K_MATCH_END(4, TOK_PROC)
 
-    K_MATCH(0, 'r') K_MATCH(1, 'e') K_MATCH(2, 'f'){
-        lex_is_alphanumeric_or_underscore(input[charPointer + 3], isEnd);
-        if (isEnd = 0) {
-            charPointer := charPointer + 2;
-            keyword := TOK_REF;
-        }
-    }
+    K_MATCH(0, 'r') K_MATCH(1, 'e') K_MATCH(2, 'f') K_MATCH_END(3, TOK_REF)
 
-    K_MATCH(0, 't') K_MATCH(1, 'y') K_MATCH(2, 'p') K_MATCH(3, 'e') {
-        lex_is_alphanumeric_or_underscore(input[charPointer + 4], isEnd);
-        if (isEnd = 0) {
-            charPointer := charPointer + 3;
-            keyword := TOK_TYPE;
-        }
-    }
+    K_MATCH(0, 't') K_MATCH(1, 'y') K_MATCH(2, 'p') K_MATCH(3, 'e') K_MATCH_END(4, TOK_TYPE)
 
-    K_MATCH(0, 'v') K_MATCH(1, 'a') K_MATCH(2, 'r') {
-        lex_is_alphanumeric_or_underscore(input[charPointer + 3], isEnd);
-        if (isEnd = 0) {
-            charPointer := charPointer + 2;
-            keyword := TOK_VAR;
-        }
-    }
+    K_MATCH(0, 'v') K_MATCH(1, 'a') K_MATCH(2, 'r') K_MATCH_END(3, TOK_VAR)
 }
 
 proc lex(ref tokens: DataArray, ref tokenPointer: int, ref input: DataArray, inputLength: int) {
