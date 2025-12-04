@@ -299,7 +299,7 @@ proc name_analysis_rec(
     var t: int;
 
     AST_R(nodeType)
-    AST_R(nodeLength);
+    AST_R(nodeLength)
 
     if (nodeType = NODE_TYPE_DECL) {
         name_analysis_type_decl(ast, astPointer, symbolTables, tablePointer, entries, entryPointer, keyBuf);
