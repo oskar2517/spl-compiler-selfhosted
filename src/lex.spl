@@ -33,8 +33,6 @@
 #define TOK_ILLEGAL  32
 
 #define NEXT_CHAR charPointer := charPointer + 1;
-#define TOKENS_W(v) tokens[tokenPointer] := v; tokenPointer := tokenPointer + 1;
-
 #define TOKEN(type) tokens[tokenPointer] := type; tokenPointer := tokenPointer + 1;
 #define K_MATCH(i, c) if (input[charPointer + (i)] = c)
 #define K_MATCH_END(i, type)                                                \
