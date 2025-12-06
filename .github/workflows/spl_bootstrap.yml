@@ -43,5 +43,5 @@ jobs:
 
       - name: Run bootstrap test
         run: |
-          chmox +x triple_test.sh
+          chmod +x triple_test.sh
           ./triple_test.sh
