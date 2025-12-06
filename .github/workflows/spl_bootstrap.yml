@@ -12,10 +12,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y nasm libsdl2-dev openjdk-21-jdk
+          sudo apt-get install -y nasm libsdl2-dev
 
       - name: Clone host compiler
         run: git clone https://github.com/oskar2517/spl-compiler
