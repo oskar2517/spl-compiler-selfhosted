@@ -648,11 +648,11 @@ proc codegen(ref ast: DataArray, ref symbolTables: SymbolTables, ref symbolTable
     INDENT PC('e', 'x', 't', 'e', 'r', 'n', ' ', 'p', 'r', 'i', 'n', 't', 'f', '\n')
     INDENT PC('e', 'x', 't', 'e', 'r', 'n', ' ', 'e', 'x', 'i', 't', '\n')
     INDENT PC('e', 'x', 't', 'e', 'r', 'n', ' ', '_', '_', 'i', 'n', 'i', 't', '_', 't', 'i', 'm', 'e', '\n')
-    INDENT PC('e', 'x', 't', 'e', 'r', 'n', ' ', '_', 'e', 'x', 'i', 't', '\n')
-    INDENT PC('e', 'x', 't', 'e', 'r', 'n', ' ', '_', 'p', 'r', 'i', 'n', 't', 'c', '\n')
     INDENT PC('e', 'x', 't', 'e', 'r', 'n', ' ', '_', 'p', 'r', 'i', 'n', 't', 'i', '\n')
+    INDENT PC('e', 'x', 't', 'e', 'r', 'n', ' ', '_', 'p', 'r', 'i', 'n', 't', 'c', '\n')
     INDENT PC('e', 'x', 't', 'e', 'r', 'n', ' ', '_', 'r', 'e', 'a', 'd', 'i', '\n')
     INDENT PC('e', 'x', 't', 'e', 'r', 'n', ' ', '_', 'r', 'e', 'a', 'd', 'c', '\n')
+    INDENT PC('e', 'x', 't', 'e', 'r', 'n', ' ', '_', 'e', 'x', 'i', 't', '\n')
     INDENT PC('e', 'x', 't', 'e', 'r', 'n', ' ', '_', 't', 'i', 'm', 'e', '\n')
     PC('\n')
 
