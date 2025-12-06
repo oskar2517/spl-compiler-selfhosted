@@ -1,4 +1,4 @@
-type DataArray = array[150000] of int;
+type DataArray = array[200000] of int;
 
 #include "defines.spl"
 #include "util.spl"

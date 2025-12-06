@@ -5,5 +5,5 @@ java -jar shadow-1.0-SNAPSHOT-all.jar spl_compiler_processed.spl --target x86 --
 nasm -f elf64 spl_compiler.nasm -o spl_compiler.o
 gcc spl_compiler.o stdlib.o -o spl_compiler -lSDL2 -no-pie
 chmod +x spl_compiler
-ulimit -s 16384
+ulimit -s 32768
 cat input.spl | ./spl_compiler
