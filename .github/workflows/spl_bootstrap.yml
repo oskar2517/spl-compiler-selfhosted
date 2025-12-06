@@ -1,0 +1,39 @@
+name: SPL Bootstrap
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nasm libsdl2-dev openjdk-21-jdk
+
+      - name: Clone host compiler
+        run: git clone https://github.com/oskar2517/spl-compiler
+
+      - name: Compile host compiler
+        run: |
+          cd spl-compiler
+          chmod +x gradlew
+          ./gradlew shadowJar
+          cd ..
+          cp spl/compiler/build/libs/shadow-1.0-SNAPSHOT-all.jar .
+
+      - name: Compile standard library
+        run: |
+          cd spl-compiler/std/x86
+          gcc -c stdlib.c -DHEADLESS
+          cd ../..
+          cp spl-compiler/std/x86/stdlib.o .
+
+      - name: Run bootstrap test
+        run: ./bootstrap.sh
