@@ -42,4 +42,4 @@ jobs:
           cp spl-compiler/std/x86/stdlib.o .
 
       - name: Run bootstrap test
-        run: ./bootstrap.sh
+        run: ./triple_test.sh
