@@ -38,7 +38,7 @@ jobs:
         run: |
           cd spl-compiler/std/x86
           gcc -c stdlib.c -DHEADLESS
-          cd ../..
+          cd ../../..
           cp spl-compiler/std/x86/stdlib.o .
 
       - name: Run bootstrap test
